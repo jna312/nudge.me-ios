@@ -1,11 +1,19 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var settings: AppSettings
+    @State private var flow = CaptureFlow()
+    
     @StateObject private var transcriber = SpeechTranscriber()
 
     var body: some View {
         VStack(spacing: 24) {
-            Text("Speak something")
+            Text(flow.prompt)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .font(.title2)
 
             Text(transcriber.transcript.isEmpty ? "…" : transcriber.transcript)
@@ -16,9 +24,15 @@ struct ContentView: View {
 
             Button(transcriber.isRecording ? "Stop" : "Speak") {
                 if transcriber.isRecording {
-                    transcriber.stop()
-                } else {
-                    try? transcriber.start()
+                        transcriber.stop()
+                        let finalText = transcriber.transcript
+
+                        Task {
+                            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
+                            transcriber.transcript = ""
+                        }
+                    } else {
+                        try? transcriber.start()
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -27,7 +41,7 @@ struct ContentView: View {
         .task {
             await transcriber.requestPermissions()
 
-                await NotificationsManager.shared.requestPermission()
+            await NotificationsManager.shared.requestPermission()
                 NotificationsManager.shared.registerCategories()
 
                 let s = await UNUserNotificationCenter.current().notificationSettings()
@@ -37,3 +51,4 @@ struct ContentView: View {
         }
     }
 }
+
