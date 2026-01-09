@@ -26,9 +26,14 @@ struct ContentView: View {
         .padding()
         .task {
             await transcriber.requestPermissions()
-            await NotificationsManager.shared.requestPermission()
-            NotificationsManager.shared.registerCategories()
-            await NotificationsManager.shared.scheduleTestIn30Seconds()
+
+                await NotificationsManager.shared.requestPermission()
+                NotificationsManager.shared.registerCategories()
+
+                let s = await UNUserNotificationCenter.current().notificationSettings()
+                print("🔔 authStatus =", s.authorizationStatus.rawValue)   // 0 notDetermined, 1 denied, 2 authorized
+                print("🔔 alertSetting =", s.alertSetting.rawValue)
+                print("🔔 soundSetting =", s.soundSetting.rawValue)
         }
     }
 }
