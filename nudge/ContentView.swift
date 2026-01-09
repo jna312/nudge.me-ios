@@ -45,10 +45,7 @@ struct ContentView: View {
             NotificationsManager.shared.registerCategories()
 
             // Debug (optional)
-            let s = await UNUserNotificationCenter.current().notificationSettings()
-            print("🔔 authStatus =", s.authorizationStatus.rawValue)
-            print("🔔 alertSetting =", s.alertSetting.rawValue)
-            print("🔔 soundSetting =", s.soundSetting.rawValue)
+            _ = await UNUserNotificationCenter.current().notificationSettings()
         }
     }
 }

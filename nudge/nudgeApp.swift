@@ -6,8 +6,12 @@ struct NudgeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(settings)
+            if settings.didCompleteOnboarding {
+                RootView(settings: settings)
+            } else {
+                OnboardingView(settings: settings)
+            }
         }
     }
 }
+
