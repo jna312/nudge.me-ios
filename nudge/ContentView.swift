@@ -1,24 +1,31 @@
-//
-//  ContentView.swift
-//  nudge
-//
-//  Created by Jeffrey on 1/8/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var transcriber = SpeechTranscriber()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        VStack(spacing: 24) {
+            Text("Speak something")
+                .font(.title2)
+
+            Text(transcriber.transcript.isEmpty ? "…" : transcriber.transcript)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(.thinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Button(transcriber.isRecording ? "Stop" : "Speak") {
+                if transcriber.isRecording {
+                    transcriber.stop()
+                } else {
+                    try? transcriber.start()
+                }
+            }
+            .buttonStyle(.borderedProminent)
         }
         .padding()
+        .task {
+            await transcriber.requestPermissions()
+        }
     }
-}
-
-#Preview {
-    ContentView()
 }
