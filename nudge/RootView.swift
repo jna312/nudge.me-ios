@@ -20,5 +20,7 @@ struct RootView: View {
 }
 
 #Preview {
-    RootView(settings: AppSettings(didCompleteOnboarding: true))
+    let settings = AppSettings()
+    settings.didCompleteOnboarding = true
+    return RootView(settings: settings)
 }

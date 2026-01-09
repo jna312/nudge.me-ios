@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 final class AppSettings: ObservableObject {
     @AppStorage("didCompleteOnboarding") var didCompleteOnboarding: Bool = false
@@ -9,3 +10,4 @@ final class AppSettings: ObservableObject {
 
     @AppStorage("writingStyle") var writingStyle: String = "sentence" // sentence | title | caps
 }
+

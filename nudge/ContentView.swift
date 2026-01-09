@@ -26,6 +26,9 @@ struct ContentView: View {
         .padding()
         .task {
             await transcriber.requestPermissions()
+            await NotificationsManager.shared.requestPermission()
+            NotificationsManager.shared.registerCategories()
+            await NotificationsManager.shared.scheduleTestIn30Seconds()
         }
     }
 }
