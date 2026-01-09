@@ -1,11 +1,12 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var settings: AppSettings
-    @State private var flow = CaptureFlow()
-    
+
+    @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
 
     var body: some View {
@@ -14,7 +15,6 @@ struct ContentView: View {
                 .font(.title3)
                 .fontWeight(.semibold)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .font(.title2)
 
             Text(transcriber.transcript.isEmpty ? "…" : transcriber.transcript)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -24,15 +24,15 @@ struct ContentView: View {
 
             Button(transcriber.isRecording ? "Stop" : "Speak") {
                 if transcriber.isRecording {
-                        transcriber.stop()
-                        let finalText = transcriber.transcript
+                    transcriber.stop()
+                    let finalText = transcriber.transcript
 
-                        Task {
-                            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
-                            transcriber.transcript = ""
-                        }
-                    } else {
-                        try? transcriber.start()
+                    Task {
+                        await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
+                        transcriber.transcript = ""
+                    }
+                } else {
+                    try? transcriber.start()
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -42,13 +42,13 @@ struct ContentView: View {
             await transcriber.requestPermissions()
 
             await NotificationsManager.shared.requestPermission()
-                NotificationsManager.shared.registerCategories()
+            NotificationsManager.shared.registerCategories()
 
-                let s = await UNUserNotificationCenter.current().notificationSettings()
-                print("🔔 authStatus =", s.authorizationStatus.rawValue)   // 0 notDetermined, 1 denied, 2 authorized
-                print("🔔 alertSetting =", s.alertSetting.rawValue)
-                print("🔔 soundSetting =", s.soundSetting.rawValue)
+            // Debug (optional)
+            let s = await UNUserNotificationCenter.current().notificationSettings()
+            print("🔔 authStatus =", s.authorizationStatus.rawValue)
+            print("🔔 alertSetting =", s.alertSetting.rawValue)
+            print("🔔 soundSetting =", s.soundSetting.rawValue)
         }
     }
 }
-
