@@ -17,6 +17,8 @@ final class CaptureFlow: ObservableObject {
     @Published var lastHeard: String = ""
     @Published var step: CaptureStep = .idle
 
+    private let parser = ReminderParser()
+    
     func reset() {
         step = .idle
         prompt = "What do you want me to remind you about?"
@@ -36,10 +38,25 @@ final class CaptureFlow: ObservableObject {
         switch step {
 
         case .idle:
-            // For now, treat the first utterance as the title.
-            // Next file (ReminderParser) will improve this.
-            step = .gotTask(title: t)
-            prompt = "When should I remind you? (Try: “tomorrow at 3 PM”)"
+            // Try to parse task + time in one shot (e.g. "Call dentist tomorrow at 3pm")
+            let result = parser.parse(t, defaultDateOnlyMinutes: settings.defaultDateOnlyMinutes)
+
+            switch result {
+            case .complete(let draft):
+                // If we got a due date/time, jump straight to alerts
+                if let due = draft.dueAt {
+                    step = .askAlert1(title: draft.title, dueAt: due)
+                    prompt = "Do you want an alert at \(formatTime(due))? Say yes or no."
+                } else {
+                    step = .gotTask(title: draft.title)
+                    prompt = "When should I remind you? (Try: “tomorrow at 3 PM”)"
+                }
+
+            case .needsWhen(let title, _):
+                step = .gotTask(title: title)
+                prompt = "When should I remind you? (Try: “tomorrow at 3 PM”)"
+            }
+
 
         case .gotTask(let title):
             // For now, only accept very simple “tomorrow at 3pm / at 7pm” patterns.
