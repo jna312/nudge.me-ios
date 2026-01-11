@@ -30,6 +30,10 @@ struct ContentView: View {
                     Task {
                         await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
                         transcriber.transcript = ""
+
+                        // Give UI a breath, then listen again
+                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        try? transcriber.start()
                     }
                 } else {
                     try? transcriber.start()
@@ -40,12 +44,19 @@ struct ContentView: View {
         .padding()
         .task {
             await transcriber.requestPermissions()
-
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
-
-            // Debug (optional)
-            _ = await UNUserNotificationCenter.current().notificationSettings()
+            
+            if !transcriber.isRecording {
+                try? transcriber.start()
+                
+                // Debug (optional)
+                _ = await UNUserNotificationCenter.current().notificationSettings()
+            }
         }
+        .onDisappear {
+            if transcriber.isRecording { transcriber.stop() }
+        }
+
     }
 }

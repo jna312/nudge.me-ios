@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -12,6 +13,7 @@ struct NudgeApp: App {
                 OnboardingView(settings: settings)
             }
         }
+    .modelContainer(for: ReminderItem.self) // ✅ REQUIRED
     }
 }
 

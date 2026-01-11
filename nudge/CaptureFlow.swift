@@ -29,7 +29,8 @@ final class CaptureFlow: ObservableObject {
     func handleTranscript(
         _ transcript: String,
         settings: AppSettings,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        repeatRule: ReminderItem.RepeatRule
     ) async {
         let t = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
@@ -142,6 +143,7 @@ final class CaptureFlow: ObservableObject {
         )
 
         modelContext.insert(item)
+        try? modelContext.save()
 
         // Schedule alerts
         await NotificationsManager.shared.schedule(reminder: item)
@@ -185,7 +187,7 @@ final class CaptureFlow: ObservableObject {
     }
 
     private func parseDueDate(from s: String, defaultDateOnlyMinutes: Int) -> Date? {
-        let lower = s.lowercased()
+        let lower = normalizeNumberWords(s)
         var base = Date()
 
         if lower.contains("tomorrow") {
@@ -237,6 +239,18 @@ final class CaptureFlow: ObservableObject {
         return f.string(from: date)
     }
 
+    private func normalizeNumberWords(_ text: String) -> String {
+        let map: [String: String] = [
+            "one":"1","two":"2","three":"3","four":"4","five":"5","six":"6",
+            "seven":"7","eight":"8","nine":"9","ten":"10","eleven":"11","twelve":"12"
+        ]
+        var t = text.lowercased()
+        for (word, digit) in map {
+            t = t.replacingOccurrences(of: "\\b\(word)\\b", with: digit, options: .regularExpression)
+        }
+        return t
+    }
+    
     private func applyWritingStyle(_ s: String, style: String) -> String {
         switch style {
         case "caps": return s.uppercased()
