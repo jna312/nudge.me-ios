@@ -2,6 +2,10 @@ import Foundation
 import EventKit
 import SwiftData
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 final class CalendarSync {
     static let shared = CalendarSync()
     
@@ -24,18 +28,15 @@ final class CalendarSync {
     // MARK: - Calendar Setup
     
     private func getOrCreateNudgeCalendar() -> EKCalendar? {
-        // Check if we already have a Nudge calendar
         let calendars = eventStore.calendars(for: .event)
         if let existing = calendars.first(where: { $0.title == "Nudge Reminders" }) {
             return existing
         }
         
-        // Create a new calendar
         let calendar = EKCalendar(for: .event, eventStore: eventStore)
         calendar.title = "Nudge Reminders"
         calendar.cgColor = UIColor.systemBlue.cgColor
         
-        // Find a source to use
         if let localSource = eventStore.sources.first(where: { $0.sourceType == .local }) {
             calendar.source = localSource
         } else if let iCloudSource = eventStore.sources.first(where: { $0.sourceType == .calDAV }) {
@@ -65,14 +66,12 @@ final class CalendarSync {
         guard let calendar = getOrCreateNudgeCalendar(),
               let dueAt = reminder.dueAt else { return }
         
-        // Check if event already exists
         let existingEvent = findEvent(for: reminder)
         
         if let event = existingEvent {
-            // Update existing event
             event.title = reminder.title
             event.startDate = dueAt
-            event.endDate = dueAt.addingTimeInterval(1800) // 30 min duration
+            event.endDate = dueAt.addingTimeInterval(1800)
             
             do {
                 try eventStore.save(event, span: .thisEvent)
@@ -81,16 +80,14 @@ final class CalendarSync {
                 print("📅 Failed to update event: \(error)")
             }
         } else {
-            // Create new event
             let event = EKEvent(eventStore: eventStore)
             event.title = reminder.title
             event.startDate = dueAt
-            event.endDate = dueAt.addingTimeInterval(1800) // 30 min duration
+            event.endDate = dueAt.addingTimeInterval(1800)
             event.calendar = calendar
             event.notes = "Created by Nudge\nID: \(reminder.id.uuidString)"
             
-            // Add alert 15 minutes before
-            let alarm = EKAlarm(relativeOffset: -900) // 15 min before
+            let alarm = EKAlarm(relativeOffset: -900)
             event.addAlarm(alarm)
             
             do {
@@ -122,13 +119,12 @@ final class CalendarSync {
     private func findEvent(for reminder: ReminderItem) -> EKEvent? {
         guard let dueAt = reminder.dueAt else { return nil }
         
-        let startDate = dueAt.addingTimeInterval(-86400) // 1 day before
-        let endDate = dueAt.addingTimeInterval(86400)    // 1 day after
+        let startDate = dueAt.addingTimeInterval(-86400)
+        let endDate = dueAt.addingTimeInterval(86400)
         
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let events = eventStore.events(matching: predicate)
         
-        // Find event with matching Nudge ID in notes
         return events.first { event in
             event.notes?.contains(reminder.id.uuidString) == true
         }
@@ -141,34 +137,33 @@ final class CalendarSync {
         
         var imported: [ReminderItem] = []
         
-        // Get events for the next 7 days
         let startDate = Date()
         let endDate = Calendar.current.date(byAdding: .day, value: 7, to: startDate)!
         
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let events = eventStore.events(matching: predicate)
         
+        // Fetch all open reminders first to check for duplicates
+        let existingDescriptor = FetchDescriptor<ReminderItem>(
+            predicate: #Predicate { $0.statusRaw == "open" }
+        )
+        let existingReminders = (try? context.fetch(existingDescriptor)) ?? []
+        let existingTitles = Set(existingReminders.map { $0.title.lowercased() })
+        
         for event in events {
-            // Skip all-day events
             guard !event.isAllDay else { continue }
             
-            // Skip events already from Nudge
             if event.notes?.contains("Created by Nudge") == true { continue }
             
-            // Check if we already have this reminder
-            let existingDescriptor = FetchDescriptor<ReminderItem>(
-                predicate: #Predicate { item in
-                    item.statusRaw == "open" && item.title == event.title
-                }
-            )
+            let eventTitle = event.title ?? "Calendar Event"
             
-            if let existing = try? context.fetch(existingDescriptor), !existing.isEmpty {
-                continue // Already exists
+            // Check if we already have this reminder (case-insensitive)
+            if existingTitles.contains(eventTitle.lowercased()) {
+                continue
             }
             
-            // Create reminder from event
             let reminder = ReminderItem(
-                title: event.title ?? "Calendar Event",
+                title: eventTitle,
                 dueAt: event.startDate,
                 alertAt: event.startDate
             )
@@ -176,7 +171,6 @@ final class CalendarSync {
             context.insert(reminder)
             imported.append(reminder)
             
-            // Schedule notification
             Task {
                 await NotificationsManager.shared.schedule(reminder: reminder)
             }
@@ -196,15 +190,18 @@ final class CalendarSync {
         guard await requestAccess() else { return }
         
         let descriptor = FetchDescriptor<ReminderItem>(
-            predicate: #Predicate { $0.statusRaw == "open" && $0.dueAt != nil }
+            predicate: #Predicate { $0.statusRaw == "open" }
         )
         
         guard let reminders = try? context.fetch(descriptor) else { return }
         
-        for reminder in reminders {
+        // Filter for reminders with dueAt in Swift code
+        let remindersWithDue = reminders.filter { $0.dueAt != nil }
+        
+        for reminder in remindersWithDue {
             await syncToCalendar(reminder: reminder)
         }
         
-        print("📅 Synced \(reminders.count) reminders to calendar")
+        print("📅 Synced \(remindersWithDue.count) reminders to calendar")
     }
 }

@@ -2,6 +2,9 @@ import Foundation
 import Speech
 import AVFoundation
 import Combine
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class WakeWordDetector: ObservableObject {
@@ -118,8 +121,10 @@ final class WakeWordDetector: ObservableObject {
         stopListening()
         
         // Haptic feedback
+        #if canImport(UIKit)
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
+        #endif
         
         print("🎙️ Wake word detected! 'Hey Nudge' heard.")
         
