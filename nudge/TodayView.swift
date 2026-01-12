@@ -3,6 +3,8 @@ import SwiftData
 import UserNotifications
 
 struct RemindersView: View {
+    @Environment(\.modelContext) private var modelContext
+    
     @Query(
         filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
         sort: \ReminderItem.dueAt
@@ -75,6 +77,13 @@ struct RemindersView: View {
                         Section(section) {
                             ForEach(items) { reminder in
                                 ReminderRow(reminder: reminder)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            deleteReminder(reminder)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                             }
                         }
                     }
@@ -85,6 +94,13 @@ struct RemindersView: View {
                             DisclosureGroup(isExpanded: $isCompletedExpanded) {
                                 ForEach(completedReminders) { reminder in
                                     CompletedReminderRow(reminder: reminder)
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            Button(role: .destructive) {
+                                                deleteReminder(reminder)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
                                 }
                             } label: {
                                 HStack {
@@ -103,6 +119,17 @@ struct RemindersView: View {
             }
         }
         .navigationTitle("Reminders")
+    }
+    
+    private func deleteReminder(_ reminder: ReminderItem) {
+        withAnimation {
+            // Cancel any pending notification
+            let notificationID = "\(reminder.id.uuidString)-alert"
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+            
+            // Delete from database
+            modelContext.delete(reminder)
+        }
     }
 }
 
@@ -184,13 +211,18 @@ struct ReminderRow: View {
 }
 
 struct CompletedReminderRow: View {
-    let reminder: ReminderItem
+    @Bindable var reminder: ReminderItem
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.green)
+            Button {
+                markIncomplete()
+            } label: {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(reminder.title)
@@ -208,6 +240,20 @@ struct CompletedReminderRow: View {
             Spacer()
         }
         .padding(.vertical, 4)
+    }
+    
+    private func markIncomplete() {
+        withAnimation {
+            reminder.status = .open
+            reminder.completedAt = nil
+            
+            // Re-schedule notification if there's a future alert time
+            if let alertAt = reminder.alertAt, alertAt > Date() {
+                Task {
+                    await NotificationsManager.shared.schedule(reminder: reminder)
+                }
+            }
+        }
     }
     
     private func formatCompletedDate(_ date: Date) -> String {
