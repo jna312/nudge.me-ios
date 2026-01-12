@@ -17,18 +17,54 @@ final class CalendarSync {
     // MARK: - Permission
     
     func requestAccess() async -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .event)
+        print("📅 Current calendar authorization status: \(status.rawValue)")
+        
+        switch status {
+        case .authorized, .fullAccess:
+            print("📅 Already have calendar access")
+            return true
+            
+        case .denied, .restricted:
+            print("📅 Calendar access denied or restricted")
+            return false
+            
+        case .notDetermined, .writeOnly:
+            print("📅 Requesting calendar access...")
+            return await requestNewAccess()
+            
+        @unknown default:
+            return await requestNewAccess()
+        }
+    }
+    
+    private func requestNewAccess() async -> Bool {
         do {
-            let granted = try await eventStore.requestFullAccessToEvents()
-            if granted {
-                // Refresh event store after permission granted
-                eventStore = EKEventStore()
-                print("📅 Calendar access granted")
+            let granted: Bool
+            
+            if #available(iOS 17.0, *) {
+                granted = try await eventStore.requestFullAccessToEvents()
             } else {
-                print("📅 Calendar access denied")
+                granted = try await withCheckedThrowingContinuation { continuation in
+                    eventStore.requestAccess(to: .event) { granted, error in
+                        if let error = error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume(returning: granted)
+                        }
+                    }
+                }
+            }
+            
+            if granted {
+                eventStore = EKEventStore()
+                print("📅 Calendar access granted!")
+            } else {
+                print("📅 Calendar access denied by user")
             }
             return granted
         } catch {
-            print("📅 Calendar access error: \(error)")
+            print("📅 Calendar access error: \(error.localizedDescription)")
             return false
         }
     }
@@ -36,12 +72,10 @@ final class CalendarSync {
     // MARK: - Calendar Setup
     
     private func getOrCreateNudgeCalendar() -> EKCalendar? {
-        // Return cached if available
         if let cached = nudgeCalendar, eventStore.calendar(withIdentifier: cached.calendarIdentifier) != nil {
             return cached
         }
         
-        // Look for existing
         let calendars = eventStore.calendars(for: .event)
         print("📅 Available calendars: \(calendars.map { $0.title })")
         
@@ -51,16 +85,13 @@ final class CalendarSync {
             return existing
         }
         
-        // Create new calendar
         let calendar = EKCalendar(for: .event, eventStore: eventStore)
         calendar.title = "Nudge Reminders"
         calendar.cgColor = UIColor.systemBlue.cgColor
         
-        // Find a writable source
         let sources = eventStore.sources
         print("📅 Available sources: \(sources.map { "\($0.title) - \($0.sourceType.rawValue)" })")
         
-        // Prefer iCloud, then local, then default
         if let iCloudSource = sources.first(where: { $0.sourceType == .calDAV && $0.title.lowercased().contains("icloud") }) {
             calendar.source = iCloudSource
             print("📅 Using iCloud source")
@@ -133,7 +164,7 @@ final class CalendarSync {
             event.calendar = calendar
             event.notes = "Created by Nudge\nID: \(reminder.id.uuidString)"
             
-            let alarm = EKAlarm(relativeOffset: -900) // 15 min before
+            let alarm = EKAlarm(relativeOffset: -900)
             event.addAlarm(alarm)
             
             do {
