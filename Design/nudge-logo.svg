@@ -3,17 +3,17 @@
   <!-- Black background with iOS-style rounded corners -->
   <rect width="1024" height="1024" rx="224" ry="224" fill="#000000"/>
   
-  <!-- White cursive lowercase 'n' - upright, centered, large -->
-  <g transform="translate(512, 512)" fill="none" stroke="#FFFFFF" stroke-width="52" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Left stem -->
-    <path d="M -180 180 
-             L -180 -40
-             Q -180 -140, -100 -140"/>
-    
-    <!-- Arch connecting to right stem -->
-    <path d="M -180 -40
-             Q -180 -180, -20 -180
-             Q 140 -180, 140 -40
-             L 140 180"/>
+  <!-- White elegant cursive 'n' - centered -->
+  <g fill="none" stroke="#FFFFFF" stroke-width="48" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Flowing script 'n' -->
+    <path d="M 320 680
+             C 320 580, 340 420, 360 350
+             C 380 280, 400 260, 420 280
+             C 440 300, 420 380, 400 480
+             C 380 580, 380 640, 400 660
+             C 440 700, 500 500, 540 380
+             C 580 260, 620 240, 660 280
+             C 700 320, 680 440, 660 560
+             C 640 680, 660 720, 720 680"/>
   </g>
 </svg>
