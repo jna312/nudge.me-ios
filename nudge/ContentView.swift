@@ -10,65 +10,94 @@ struct ContentView: View {
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
     
-    @State private var wasRecordingBeforeSettings = false
-    @State private var wasRecordingBeforeNotification = false
+    @State private var isHoldingMic = false
     @State private var showQuickAdd = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 32) {
+            Spacer()
+            
+            // Prompt text
             Text(flow.prompt)
-                .font(.title3)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(transcriber.transcript.isEmpty ? "…" : transcriber.transcript)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-                .background(.thinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            HStack(spacing: 16) {
-                Button(transcriber.isRecording ? "Stop" : "Speak") {
-                    if transcriber.isRecording {
-                        transcriber.stop()
-                        let finalText = transcriber.transcript
-
-                        Task {
-                            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
-                            transcriber.transcript = ""
-
-                            try? await Task.sleep(nanoseconds: 200_000_000)
-                            if !isSettingsOpen {
-                                try? transcriber.start()
+                .font(.title2)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+            
+            // Transcript display
+            if !transcriber.transcript.isEmpty || isHoldingMic {
+                Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
+                    .font(.title3)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding()
+                    .background(.thinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+            }
+            
+            Spacer()
+            
+            // Hold-to-record mic button
+            VStack(spacing: 12) {
+                ZStack {
+                    // Pulsing background when recording
+                    if isHoldingMic {
+                        Circle()
+                            .fill(Color.red.opacity(0.2))
+                            .frame(width: 120, height: 120)
+                            .scaleEffect(isHoldingMic ? 1.2 : 1.0)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
+                    }
+                    
+                    // Main mic button
+                    Circle()
+                        .fill(isHoldingMic ? Color.red : Color.accentColor)
+                        .frame(width: 88, height: 88)
+                        .shadow(color: isHoldingMic ? .red.opacity(0.4) : .accentColor.opacity(0.3), radius: 8, y: 4)
+                        .overlay {
+                            Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.white)
+                                .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
+                        }
+                        .scaleEffect(isHoldingMic ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3), value: isHoldingMic)
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if !isHoldingMic && !isSettingsOpen {
+                                startRecording()
                             }
                         }
-                    } else {
-                        try? transcriber.start()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
+                        .onEnded { _ in
+                            if isHoldingMic {
+                                stopRecording()
+                            }
+                        }
+                )
                 .disabled(isSettingsOpen)
+                .opacity(isSettingsOpen ? 0.5 : 1.0)
                 
-                Button {
-                    if transcriber.isRecording {
-                        transcriber.stop()
-                    }
-                    showQuickAdd = true
-                } label: {
-                    Image(systemName: "keyboard")
-                        .font(.title3)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSettingsOpen)
+                Text(isHoldingMic ? "Release to save" : "Hold to speak")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            
+            // Keyboard button
+            Button {
+                showQuickAdd = true
+            } label: {
+                Label("Type instead", systemImage: "keyboard")
+                    .font(.subheadline)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isSettingsOpen)
+            .padding(.bottom, 32)
         }
-        .padding()
         .sheet(isPresented: $showQuickAdd) {
-            QuickAddView(settings: settings, modelContext: modelContext) {
-                if !isSettingsOpen && wasRecordingBeforeSettings {
-                    try? transcriber.start()
-                }
-            }
+            QuickAddView(settings: settings, modelContext: modelContext) {}
         }
         .task {
             await transcriber.requestPermissions()
@@ -79,43 +108,59 @@ struct ContentView: View {
             // Set up notification sound callbacks
             NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
                 guard let transcriber = transcriber else { return }
-                wasRecordingBeforeNotification = transcriber.isRecording
                 if transcriber.isRecording {
                     transcriber.stop()
-                    print("🎤 Paused transcriber for notification sound")
+                    isHoldingMic = false
                 }
             }
             
-            NotificationsManager.shared.onNotificationSoundComplete = { [weak transcriber] in
-                guard let transcriber = transcriber else { return }
-                if wasRecordingBeforeNotification && !isSettingsOpen {
-                    try? transcriber.start()
-                    print("🎤 Resumed transcriber after notification")
-                }
-            }
-            
-            if !transcriber.isRecording && !isSettingsOpen {
-                try? transcriber.start()
-                _ = await UNUserNotificationCenter.current().notificationSettings()
+            NotificationsManager.shared.onNotificationSoundComplete = {
+                // Don't auto-resume - user controls mic now
             }
         }
         .onChange(of: settings.notificationSound) { _, newSound in
             NotificationsManager.shared.currentSoundSetting = newSound
         }
         .onChange(of: isSettingsOpen) { _, isOpen in
-            if isOpen {
-                wasRecordingBeforeSettings = transcriber.isRecording
-                if transcriber.isRecording {
-                    transcriber.stop()
-                }
-            } else {
-                if wasRecordingBeforeSettings {
-                    try? transcriber.start()
-                }
+            if isOpen && isHoldingMic {
+                transcriber.stop()
+                isHoldingMic = false
             }
         }
-        .onDisappear {
-            if transcriber.isRecording { transcriber.stop() }
+    }
+    
+    private func startRecording() {
+        isHoldingMic = true
+        transcriber.transcript = ""
+        try? transcriber.start()
+        
+        // Haptic feedback
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+    
+    private func stopRecording() {
+        isHoldingMic = false
+        transcriber.stop()
+        
+        let finalText = transcriber.transcript
+        
+        // Haptic feedback
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        
+        // Process if we got something
+        guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            transcriber.transcript = ""
+            return
+        }
+        
+        Task {
+            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
+            
+            // Clear transcript after processing
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            transcriber.transcript = ""
         }
     }
 }
