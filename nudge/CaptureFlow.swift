@@ -34,7 +34,7 @@ final class CaptureFlow: ObservableObject {
     
     func reset() {
         step = .idle
-        prompt = "What do you want me to remind you about?"
+        prompt = String(localized: "What do you want me to remind you about?")
         lastHeard = ""
         conflictWarning = nil
         timeSuggestions = []
@@ -94,13 +94,13 @@ final class CaptureFlow: ObservableObject {
                 } else {
                     step = .gotTask(title: draft.title)
                     timeSuggestions = TimeSuggestionEngine.getSuggestions(for: draft.title, in: modelContext)
-                    prompt = "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")"
+                    prompt = String(localized: "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")")
                 }
 
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
                 timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
+                prompt = String(localized: "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")")
                 needsFollowUp = true
                 
             case .needsTime(let title, let baseDate, let periodHint):
@@ -123,7 +123,7 @@ final class CaptureFlow: ObservableObject {
                         modelContext: modelContext
                     )
                 } else {
-                    prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
+                    prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
                 }
                 
             case .needsTime(_, let baseDate, let periodHint):
@@ -132,7 +132,7 @@ final class CaptureFlow: ObservableObject {
                 needsFollowUp = true
                 
             case .needsWhen:
-                prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
+                prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
             }
             
         case .needsTime(let title, let baseDate, _):
@@ -145,7 +145,7 @@ final class CaptureFlow: ObservableObject {
                     modelContext: modelContext
                 )
             } else {
-                prompt = "What time? (e.g. \"9 AM\" or \"3:30 PM\")"
+                prompt = String(localized: "What time? (e.g. \"9 AM\" or \"3:30 PM\")")
                 needsFollowUp = true
             }
             
@@ -154,9 +154,9 @@ final class CaptureFlow: ObservableObject {
                 await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
-                prompt = "Okay, cancelled. What else?"
+                prompt = String(localized: "Okay, cancelled. What else?")
             } else {
-                prompt = "Say \"yes\" to save anyway, or \"no\" to cancel."
+                prompt = String(localized: "Say \"yes\" to save anyway, or \"no\" to cancel.")
             }
             
         case .confirmEdit(let reminder, let newTime, let newTitle):
@@ -164,9 +164,9 @@ final class CaptureFlow: ObservableObject {
                 await applyEdit(reminder: reminder, newTime: newTime, newTitle: newTitle, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
-                prompt = "Okay, no changes made."
+                prompt = String(localized: "Okay, no changes made.")
             } else {
-                prompt = "Say \"yes\" to confirm or \"no\" to cancel."
+                prompt = String(localized: "Say \"yes\" to confirm or \"no\" to cancel.")
             }
             
         case .confirmCancel(let reminders):
@@ -174,9 +174,9 @@ final class CaptureFlow: ObservableObject {
                 await deleteReminders(reminders, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
-                prompt = "Okay, nothing deleted."
+                prompt = String(localized: "Okay, nothing deleted.")
             } else {
-                prompt = "Say \"yes\" to delete or \"no\" to keep."
+                prompt = String(localized: "Say \"yes\" to delete or \"no\" to keep.")
             }
             
         case .calendarConflict(let title, let dueAt, let conflictingEvents):
@@ -188,16 +188,16 @@ final class CaptureFlow: ObservableObject {
                 // Change time: go back to gotTask step
                 step = .gotTask(title: title)
                 timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = "What time works better?"
+                prompt = String(localized: "What time works better?")
                 needsFollowUp = true
             } else if parseSaveAnyway(t) || parseYes(t) {
                 // Save anyway: proceed with original reminder
                 await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
             } else if parseNo(t) || parseCancel(t) {
                 reset()
-                prompt = "Okay, cancelled. What else?"
+                prompt = String(localized: "Okay, cancelled. What else?")
             } else {
-                prompt = "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\"."
+                prompt = String(localized: "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\".")
                 needsFollowUp = true
             }
         }
@@ -244,7 +244,7 @@ final class CaptureFlow: ObservableObject {
     
     private func handleCancelLast(modelContext: ModelContext) async {
         guard let last = ReminderSearch.findLast(in: modelContext) else {
-            prompt = "No reminders to cancel."
+            prompt = String(localized: "No reminders to cancel.")
             return
         }
         
@@ -318,7 +318,7 @@ final class CaptureFlow: ObservableObject {
         
         try? modelContext.save()
         reset()
-        prompt = "Updated! What's next?"
+        prompt = String(localized: "Updated! What's next?")
     }
     
     private func deleteReminders(_ reminders: [ReminderItem], modelContext: ModelContext) async {
@@ -334,7 +334,7 @@ final class CaptureFlow: ObservableObject {
         reset()
         
         if reminders.count == 1 {
-            prompt = "Deleted. What's next?"
+            prompt = String(localized: "Deleted. What's next?")
         } else {
             prompt = "Deleted \(reminders.count) reminders. What's next?"
         }
@@ -345,15 +345,15 @@ final class CaptureFlow: ObservableObject {
     private func promptForTime(periodHint: String?) -> String {
         switch periodHint {
         case "morning":
-            return "What time in the morning? (e.g. \"9 AM\")"
+            return String(localized: "What time in the morning? (e.g. \"9 AM\")")
         case "afternoon":
-            return "What time in the afternoon? (e.g. \"2 PM\")"
+            return String(localized: "What time in the afternoon? (e.g. \"2 PM\")")
         case "evening":
-            return "What time in the evening? (e.g. \"7 PM\")"
+            return String(localized: "What time in the evening? (e.g. \"7 PM\")")
         case "night":
-            return "What time at night? (e.g. \"9 PM\")"
+            return String(localized: "What time at night? (e.g. \"9 PM\")")
         default:
-            return "What time? (e.g. \"3 PM\")"
+            return String(localized: "What time? (e.g. \"3 PM\")")
         }
     }
     

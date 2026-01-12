@@ -58,8 +58,8 @@ final class TipsManager: ObservableObject {
             guard !holdToSpeakShown else { return }
             currentTip = Tip(
                 id: .holdToSpeak,
-                title: "Hold to Speak",
-                message: "Hold the mic button and say your reminder with a time, like \"Call mom tomorrow at 3 PM\"",
+                title: String(localized: "Hold to Speak"),
+                message: String(localized: "Hold the mic button and say your reminder with a time, like \"Call mom tomorrow at 3 PM\""),
                 icon: "hand.tap.fill"
             )
             
@@ -67,8 +67,8 @@ final class TipsManager: ObservableObject {
             guard !swipeActionsShown else { return }
             currentTip = Tip(
                 id: .swipeActions,
-                title: "Swipe for Actions",
-                message: "Swipe left to delete, swipe right to snooze. Tap the circle to complete.",
+                title: String(localized: "Swipe for Actions"),
+                message: String(localized: "Swipe left to delete, swipe right to snooze. Tap the circle to complete."),
                 icon: "hand.draw"
             )
             
@@ -76,8 +76,8 @@ final class TipsManager: ObservableObject {
             guard !voiceCommandsShown else { return }
             currentTip = Tip(
                 id: .voiceCommands,
-                title: "Voice Commands",
-                message: "Try saying \"Cancel my last reminder\" or \"Change dentist to 4 PM\"",
+                title: String(localized: "Voice Commands"),
+                message: String(localized: "Try saying \"Cancel my last reminder\" or \"Change dentist to 4 PM\""),
                 icon: "mic.fill"
             )
             
@@ -85,8 +85,8 @@ final class TipsManager: ObservableObject {
             guard !undoBannerShown else { return }
             currentTip = Tip(
                 id: .undoBanner,
-                title: "Quick Undo",
-                message: "Made a mistake? Tap Undo within 5 seconds to delete the reminder.",
+                title: String(localized: "Quick Undo"),
+                message: String(localized: "Made a mistake? Tap Undo within 5 seconds to delete the reminder."),
                 icon: "arrow.uturn.backward"
             )
             
@@ -94,8 +94,8 @@ final class TipsManager: ObservableObject {
             guard !quickAddShown else { return }
             currentTip = Tip(
                 id: .quickAdd,
-                title: "Quick Time Buttons",
-                message: "Tap the time chips for common options like \"30 min\" or \"Tomorrow 9 AM\"",
+                title: String(localized: "Quick Time Buttons"),
+                message: String(localized: "Tap the time chips for common options like \"30 min\" or \"Tomorrow 9 AM\""),
                 icon: "clock"
             )
         }

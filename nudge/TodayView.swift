@@ -20,6 +20,7 @@ struct RemindersView: View {
     @State private var isCompletedExpanded = false
     @State private var editingReminder: ReminderItem?
     @State private var showSettings = false
+    @ObservedObject private var tipsManager = TipsManager.shared
     
     private let emptyStateMessages = [
         ("No Reminders", "checkmark.circle", "You're all caught up!"),
@@ -183,6 +184,23 @@ struct RemindersView: View {
             if emptyState == nil {
                 let pick = emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
                 emptyState = (title: pick.0, image: pick.1, description: pick.2)
+            }
+            
+            // Show swipe actions tip when there are reminders
+            if !openReminders.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    if tipsManager.currentTip == nil {
+                        tipsManager.showTipIfNeeded(.swipeActions)
+                    }
+                }
+            }
+        }
+        .overlay {
+            // Tip overlay
+            if let tip = tipsManager.currentTip {
+                TipOverlay(tip: tip) {
+                    tipsManager.dismissTip(tip.id)
+                }
             }
         }
     }

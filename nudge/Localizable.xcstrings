@@ -1,0 +1,369 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "What do you want me to remind you about?" : {
+      "comment" : "Initial prompt on speak screen"
+    },
+    "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")" : {
+      "comment" : "Prompt asking for time"
+    },
+    "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")" : {
+      "comment" : "Prompt asking for date and time"
+    },
+    "What time? (e.g. \"9 AM\" or \"3:30 PM\")" : {
+      "comment" : "Prompt asking for specific time"
+    },
+    "What time in the morning? (e.g. \"9 AM\")" : {
+      "comment" : "Prompt for morning time"
+    },
+    "What time in the afternoon? (e.g. \"2 PM\")" : {
+      "comment" : "Prompt for afternoon time"
+    },
+    "What time in the evening? (e.g. \"7 PM\")" : {
+      "comment" : "Prompt for evening time"
+    },
+    "What time at night? (e.g. \"9 PM\")" : {
+      "comment" : "Prompt for night time"
+    },
+    "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"" : {
+      "comment" : "Error prompt when time not understood"
+    },
+    "Say \"yes\" to save anyway, or \"no\" to cancel." : {
+      "comment" : "Duplicate confirmation prompt"
+    },
+    "Say \"yes\" to confirm or \"no\" to cancel." : {
+      "comment" : "Edit confirmation prompt"
+    },
+    "Say \"yes\" to delete or \"no\" to keep." : {
+      "comment" : "Delete confirmation prompt"
+    },
+    "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\"." : {
+      "comment" : "Calendar conflict options"
+    },
+    "Okay, cancelled. What else?" : {
+      "comment" : "Cancellation confirmation"
+    },
+    "Okay, no changes made." : {
+      "comment" : "Edit cancelled"
+    },
+    "Okay, nothing deleted." : {
+      "comment" : "Delete cancelled"
+    },
+    "Saved!" : {
+      "comment" : "Reminder saved confirmation"
+    },
+    "Updated! What's next?" : {
+      "comment" : "Edit saved confirmation"
+    },
+    "Deleted. What's next?" : {
+      "comment" : "Single reminder deleted"
+    },
+    "No reminders to cancel." : {
+      "comment" : "No reminders found to cancel"
+    },
+    "Hold to speak" : {
+      "comment" : "Mic button hint"
+    },
+    "Release to save" : {
+      "comment" : "Mic button hint while recording"
+    },
+    "Type instead" : {
+      "comment" : "Button to open quick add"
+    },
+    "Listening..." : {
+      "comment" : "Shown while recording with no transcript"
+    },
+    "Listening for \"Hey Nudge\"..." : {
+      "comment" : "Wake word indicator"
+    },
+    "Undo" : {
+      "comment" : "Undo button"
+    },
+    "Saved: %@" : {
+      "comment" : "Undo banner showing saved reminder title"
+    },
+    "Reminders" : {
+      "comment" : "Tab and navigation title"
+    },
+    "Settings" : {
+      "comment" : "Settings navigation title"
+    },
+    "Speak" : {
+      "comment" : "Speak tab title"
+    },
+    "Today" : {
+      "comment" : "Section header for today's reminders"
+    },
+    "Tomorrow" : {
+      "comment" : "Section header for tomorrow's reminders"
+    },
+    "This Week" : {
+      "comment" : "Section header"
+    },
+    "Later" : {
+      "comment" : "Section header"
+    },
+    "Overdue" : {
+      "comment" : "Section header for overdue reminders"
+    },
+    "No Date" : {
+      "comment" : "Section header for reminders without due date"
+    },
+    "Completed" : {
+      "comment" : "Section header for completed reminders"
+    },
+    "No completed reminders." : {
+      "comment" : "Empty state for completed section"
+    },
+    "No Reminders" : {
+      "comment" : "Empty state title"
+    },
+    "You're all caught up!" : {
+      "comment" : "Empty state description"
+    },
+    "All Clear" : {
+      "comment" : "Empty state title variant"
+    },
+    "Nothing to do. Enjoy the moment!" : {
+      "comment" : "Empty state description variant"
+    },
+    "Free Time" : {
+      "comment" : "Empty state title variant"
+    },
+    "Your schedule is wide open." : {
+      "comment" : "Empty state description variant"
+    },
+    "Well Done" : {
+      "comment" : "Empty state title variant"
+    },
+    "You've completed everything!" : {
+      "comment" : "Empty state description variant"
+    },
+    "Peace of Mind" : {
+      "comment" : "Empty state title variant"
+    },
+    "No pending tasks. Relax." : {
+      "comment" : "Empty state description variant"
+    },
+    "Delete" : {
+      "comment" : "Swipe action"
+    },
+    "10 min" : {
+      "comment" : "Snooze swipe action"
+    },
+    "1 hour" : {
+      "comment" : "Snooze swipe action"
+    },
+    "Quick Add" : {
+      "comment" : "Quick add sheet title"
+    },
+    "What do you need to remember?" : {
+      "comment" : "Quick add section header"
+    },
+    "Reminder title" : {
+      "comment" : "Text field placeholder"
+    },
+    "When" : {
+      "comment" : "Section header for time selection"
+    },
+    "Due Date" : {
+      "comment" : "Date picker label"
+    },
+    "30 min" : {
+      "comment" : "Quick time button"
+    },
+    "3 hours" : {
+      "comment" : "Quick time button"
+    },
+    "Tomorrow 9 AM" : {
+      "comment" : "Quick time button"
+    },
+    "Tomorrow 6 PM" : {
+      "comment" : "Quick time button"
+    },
+    "Alert at due time" : {
+      "comment" : "Toggle label"
+    },
+    "Cancel" : {
+      "comment" : "Cancel button"
+    },
+    "Add" : {
+      "comment" : "Add button"
+    },
+    "Save" : {
+      "comment" : "Save button"
+    },
+    "Edit Reminder" : {
+      "comment" : "Edit sheet title"
+    },
+    "Reminder" : {
+      "comment" : "Section header"
+    },
+    "Title" : {
+      "comment" : "Text field label"
+    },
+    "Alerts" : {
+      "comment" : "Section header"
+    },
+    "Early warning" : {
+      "comment" : "Picker label for early alerts"
+    },
+    "None" : {
+      "comment" : "No early alert option"
+    },
+    "5 minutes before" : {
+      "comment" : "Early alert option"
+    },
+    "15 minutes before" : {
+      "comment" : "Early alert option"
+    },
+    "30 minutes before" : {
+      "comment" : "Early alert option"
+    },
+    "1 hour before" : {
+      "comment" : "Early alert option"
+    },
+    "2 hours before" : {
+      "comment" : "Early alert option"
+    },
+    "Get a \"Coming Up\" notification before your main alert." : {
+      "comment" : "Early alert explanation"
+    },
+    "Snooze 1 Hour" : {
+      "comment" : "Edit reminder button"
+    },
+    "Snooze to Tomorrow 9 AM" : {
+      "comment" : "Edit reminder button"
+    },
+    "How to Use Nudge" : {
+      "comment" : "Help navigation link"
+    },
+    "Security" : {
+      "comment" : "Settings section header"
+    },
+    "Require %@" : {
+      "comment" : "Biometric toggle, %@ is Face ID or Touch ID"
+    },
+    "Require %@ to open Nudge." : {
+      "comment" : "Biometric explanation"
+    },
+    "Daily closeout" : {
+      "comment" : "Settings section header"
+    },
+    "Closeout time" : {
+      "comment" : "Date picker label"
+    },
+    "Review uncompleted reminders at end of day." : {
+      "comment" : "Closeout explanation"
+    },
+    "Voice Activation" : {
+      "comment" : "Settings section header"
+    },
+    "\"Hey Nudge\" Wake Word" : {
+      "comment" : "Toggle label"
+    },
+    "Say \"Hey Nudge\" to start recording hands-free." : {
+      "comment" : "Wake word explanation"
+    },
+    "Calendar Integration" : {
+      "comment" : "Settings section header"
+    },
+    "Sync with Calendar" : {
+      "comment" : "Toggle label"
+    },
+    "Syncing..." : {
+      "comment" : "Progress indicator"
+    },
+    "Reminders sync to \"Nudge Reminders\" calendar." : {
+      "comment" : "Calendar sync explanation"
+    },
+    "Sync Now" : {
+      "comment" : "Manual sync button"
+    },
+    "Calendar Sync" : {
+      "comment" : "Alert title"
+    },
+    "Early Alerts" : {
+      "comment" : "Settings section header"
+    },
+    "Default early warning" : {
+      "comment" : "Picker label"
+    },
+    "Get a \"Coming Up\" notification before your main reminder alert." : {
+      "comment" : "Early alerts explanation"
+    },
+    "Writing style" : {
+      "comment" : "Settings section header"
+    },
+    "Reminder text" : {
+      "comment" : "Picker label"
+    },
+    "Sentence Case" : {
+      "comment" : "Writing style option"
+    },
+    "Title Case" : {
+      "comment" : "Writing style option"
+    },
+    "ALL CAPS" : {
+      "comment" : "Writing style option"
+    },
+    "Shortcuts" : {
+      "comment" : "Settings section header"
+    },
+    "Siri Shortcuts" : {
+      "comment" : "Navigation link"
+    },
+    "Advanced" : {
+      "comment" : "Settings section header"
+    },
+    "Reset Tips" : {
+      "comment" : "Button to reset contextual tips"
+    },
+    "Reset Onboarding" : {
+      "comment" : "Button to reset onboarding"
+    },
+    "OK" : {
+      "comment" : "Alert dismiss button"
+    },
+    "Hold to Speak" : {
+      "comment" : "Tip title"
+    },
+    "Hold the mic button and say your reminder with a time, like \"Call mom tomorrow at 3 PM\"" : {
+      "comment" : "Tip message"
+    },
+    "Swipe for Actions" : {
+      "comment" : "Tip title"
+    },
+    "Swipe left to delete, swipe right to snooze. Tap the circle to complete." : {
+      "comment" : "Tip message"
+    },
+    "Voice Commands" : {
+      "comment" : "Tip title"
+    },
+    "Try saying \"Cancel my last reminder\" or \"Change dentist to 4 PM\"" : {
+      "comment" : "Tip message"
+    },
+    "Quick Undo" : {
+      "comment" : "Tip title"
+    },
+    "Made a mistake? Tap Undo within 5 seconds to delete the reminder." : {
+      "comment" : "Tip message"
+    },
+    "Quick Time Buttons" : {
+      "comment" : "Tip title"
+    },
+    "Tap the time chips for common options like \"30 min\" or \"Tomorrow 9 AM\"" : {
+      "comment" : "Tip message"
+    },
+    "Got it" : {
+      "comment" : "Tip dismiss button"
+    },
+    "Unlock Nudge" : {
+      "comment" : "Lock screen title"
+    },
+    "Tap to unlock with %@" : {
+      "comment" : "Lock screen instruction, %@ is Face ID or Touch ID"
+    }
+  },
+  "version" : "1.0"
+}

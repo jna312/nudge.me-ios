@@ -10,6 +10,7 @@ struct ContentView: View {
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
     @StateObject private var wakeWordDetector = WakeWordDetector()
+    @ObservedObject private var tipsManager = TipsManager.shared
     
     @State private var isHoldingMic = false
     @State private var showQuickAdd = false
@@ -149,6 +150,13 @@ struct ContentView: View {
                 }
                 .animation(.spring(response: 0.3), value: showUndoBanner)
             }
+            
+            // Tip overlay
+            if let tip = tipsManager.currentTip {
+                TipOverlay(tip: tip) {
+                    tipsManager.dismissTip(tip.id)
+                }
+            }
         }
         .sheet(isPresented: $showQuickAdd) {
             QuickAddView(settings: settings, modelContext: modelContext, calendarSyncEnabled: settings.calendarSyncEnabled) {}
@@ -176,6 +184,11 @@ struct ContentView: View {
             if settings.wakeWordEnabled {
                 wakeWordDetector.isEnabled = true
                 wakeWordDetector.startListening()
+            }
+            
+            // Show hold to speak tip on first launch
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                tipsManager.showTipIfNeeded(.holdToSpeak)
             }
         }
         .onChange(of: settings.wakeWordEnabled) { _, enabled in
@@ -218,6 +231,18 @@ struct ContentView: View {
                         if lastSavedReminder?.id == reminder.id {
                             showUndoBanner = false
                         }
+                    }
+                }
+                
+                // Show tips after first successful reminder
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    if tipsManager.currentTip == nil {
+                        tipsManager.showTipIfNeeded(.undoBanner)
+                    }
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                    if tipsManager.currentTip == nil {
+                        tipsManager.showTipIfNeeded(.voiceCommands)
                     }
                 }
             }
@@ -441,6 +466,18 @@ struct QuickAddView: View {
             }
             .onAppear {
                 isTitleFocused = true
+                
+                // Show quick time button tip
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    TipsManager.shared.showTipIfNeeded(.quickAdd)
+                }
+            }
+            .overlay {
+                if let tip = TipsManager.shared.currentTip {
+                    TipOverlay(tip: tip) {
+                        TipsManager.shared.dismissTip(tip.id)
+                    }
+                }
             }
         }
     }
