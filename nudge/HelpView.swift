@@ -27,6 +27,15 @@ struct HelpView: View {
                 )
                 
                 HelpRow(
+                    title: "Add an early warning",
+                    examples: [
+                        "\"Meeting at 2 PM with a 15 minute warning\"",
+                        "\"Doctor at 10 AM with an early alert\"",
+                        "\"Call mom at 5, warn me 30 minutes before\""
+                    ]
+                )
+                
+                HelpRow(
                     title: "Edit a reminder",
                     examples: [
                         "\"Change dentist to 4 PM\"",
@@ -69,6 +78,18 @@ struct HelpView: View {
                     icon: "hand.tap.fill",
                     title: "Hold to Speak",
                     description: "Hold the mic button, speak your reminder, release to save."
+                )
+                
+                FeatureRow(
+                    icon: "mic.badge.plus",
+                    title: "Auto-Listen",
+                    description: "When Nudge asks a follow-up question, the mic starts automatically and stops when you finish speaking."
+                )
+                
+                FeatureRow(
+                    icon: "bell.badge",
+                    title: "Early Alerts",
+                    description: "Get a \"heads up\" notification before your reminder. Say \"with a 15 minute warning\" or set a default in Settings."
                 )
                 
                 FeatureRow(
@@ -124,6 +145,12 @@ struct HelpView: View {
             // Optional Features
             Section {
                 FeatureRow(
+                    icon: "bell.and.waves.left.and.right",
+                    title: "Default Early Alert",
+                    description: "Set a default warning time in Settings so every reminder gets a heads up automatically."
+                )
+                
+                FeatureRow(
                     icon: "waveform",
                     title: "\"Hey Nudge\"",
                     description: "Enable in Settings to start recording hands-free by saying \"Hey Nudge\"."
@@ -136,6 +163,12 @@ struct HelpView: View {
                 )
                 
                 FeatureRow(
+                    icon: "faceid",
+                    title: "Face ID / Touch ID",
+                    description: "Lock Nudge with biometrics. Enable in Settings → Security."
+                )
+                
+                FeatureRow(
                     icon: "apps.iphone",
                     title: "Siri Shortcuts",
                     description: "Say \"Hey Siri, add a nudge\" to create reminders from anywhere."
@@ -143,7 +176,7 @@ struct HelpView: View {
             } header: {
                 Label("Optional Features", systemImage: "gearshape.2")
             } footer: {
-                Text("Enable these in Settings → Voice Activation / Calendar Integration")
+                Text("Configure these in Settings (tap the gear icon)")
             }
             
             // Tips
@@ -152,6 +185,8 @@ struct HelpView: View {
                     TipRow(tip: "Be specific with times — \"3 PM\" works better than \"afternoon\"")
                     TipRow(tip: "Include the day if it's not today — \"tomorrow\", \"next Friday\"")
                     TipRow(tip: "Use \"in X minutes\" for quick reminders")
+                    TipRow(tip: "Add \"with a 15 minute warning\" to get a heads up before important reminders")
+                    TipRow(tip: "Set a default early alert in Settings so you never miss anything")
                     TipRow(tip: "The daily closeout at 9 PM helps you review uncompleted reminders")
                 }
                 .padding(.vertical, 4)

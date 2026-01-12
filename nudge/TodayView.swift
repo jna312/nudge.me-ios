@@ -19,6 +19,7 @@ struct RemindersView: View {
     
     @State private var isCompletedExpanded = false
     @State private var editingReminder: ReminderItem?
+    @State private var showSettings = false
     
     private let emptyStateMessages = [
         ("No Reminders", "checkmark.circle", "You're all caught up!"),
@@ -160,9 +161,23 @@ struct RemindersView: View {
                 }
             }
             .navigationTitle("Reminders")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            }
         }
         .sheet(item: $editingReminder) { reminder in
             EditReminderView(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                SettingsView(settings: settings)
+            }
         }
         .onAppear {
             if emptyState == nil {
