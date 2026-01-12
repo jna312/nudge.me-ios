@@ -19,11 +19,6 @@ struct RootView: View {
                     .environmentObject(settings)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Text("nudge")
-                                .font(.custom("Snell Roundhand", size: 28))
-                                .fontWeight(.bold)
-                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 showSettings = true
