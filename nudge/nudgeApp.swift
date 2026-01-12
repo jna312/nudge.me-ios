@@ -4,6 +4,11 @@ import SwiftUI
 @main
 struct NudgeApp: App {
     @StateObject private var settings = AppSettings()
+    
+    init() {
+        // Initialize NotificationsManager early so delegate is set for foreground notifications
+        _ = NotificationsManager.shared
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -13,7 +18,7 @@ struct NudgeApp: App {
                 OnboardingView(settings: settings)
             }
         }
-    .modelContainer(for: ReminderItem.self) // ✅ REQUIRED
+        .modelContainer(for: ReminderItem.self)
     }
 }
 

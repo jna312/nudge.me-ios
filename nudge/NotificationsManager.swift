@@ -6,17 +6,23 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
     let reminderCategoryIdentifier = "REMINDER_CATEGORY"
     let closeoutCategoryIdentifier = "CLOSEOUT_CATEGORY"
+    
+    override init() {
+        super.init()
+        // Set delegate immediately so foreground notifications work
+        UNUserNotificationCenter.current().delegate = self
+    }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        return [.banner, .sound, .badge]
+        // Show notifications even when app is in foreground
+        return [.banner, .sound, .badge, .list]
     }
     
     func requestPermission() async {
         let granted = (try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         print("🔔 Notifications permission granted =", granted)
-        UNUserNotificationCenter.current().delegate = self
     }
 
     func registerCategories() {
@@ -80,7 +86,8 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         guard let alertAt = reminder.alertAt else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = reminder.title
+        content.title = "Reminder"
+        content.body = reminder.title
         content.sound = notificationSound(for: soundSetting)
         content.userInfo = ["reminderID": reminder.id.uuidString]
         content.categoryIdentifier = reminderCategoryIdentifier
@@ -90,23 +97,17 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
         let req = UNNotificationRequest(identifier: notificationID, content: content, trigger: trigger)
         try? await center.add(req)
+        
+        print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt)")
     }
     
     private func notificationSound(for setting: String) -> UNNotificationSound? {
-        switch setting {
-        case "silent":
+        if setting == "silent" {
             return nil
-        case "tri-tone":
-            return UNNotificationSound(named: UNNotificationSoundName("tri-tone.caf"))
-        case "chime":
-            return UNNotificationSound(named: UNNotificationSoundName("chime.caf"))
-        case "pulse":
-            return UNNotificationSound(named: UNNotificationSoundName("pulse.caf"))
-        case "synth":
-            return UNNotificationSound(named: UNNotificationSoundName("synth.caf"))
-        default:
-            return .default
         }
+        // Use default system notification sound
+        // Note: Custom sounds require bundled audio files (.caf, .wav, .aiff)
+        return .default
     }
 
 }
