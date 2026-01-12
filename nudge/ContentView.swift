@@ -9,16 +9,34 @@ struct ContentView: View {
 
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
+    @StateObject private var wakeWordDetector = WakeWordDetector()
     
     @State private var isHoldingMic = false
     @State private var showQuickAdd = false
     @State private var lastSavedReminder: ReminderItem?
     @State private var showUndoBanner = false
+    @State private var wakeWordTriggered = false
 
     var body: some View {
         ZStack {
             VStack(spacing: 32) {
                 Spacer()
+                
+                // Wake word indicator
+                if settings.wakeWordEnabled && wakeWordDetector.isListening {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                        Text("Listening for \"Hey Nudge\"...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                }
                 
                 // Prompt text
                 Text(flow.prompt)
@@ -83,7 +101,7 @@ struct ContentView: View {
                     .disabled(isSettingsOpen)
                     .opacity(isSettingsOpen ? 0.5 : 1.0)
                     
-                    Text(isHoldingMic ? "Release to save" : "Hold to speak")
+                    Text(isHoldingMic ? "Release to save" : (settings.wakeWordEnabled ? "Hold or say \"Hey Nudge\"" : "Hold to speak"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -124,37 +142,59 @@ struct ContentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(radius: 8)
                     .padding(.horizontal)
-                    .padding(.bottom, 120) // Above the mic button
+                    .padding(.bottom, 120)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 .animation(.spring(response: 0.3), value: showUndoBanner)
             }
         }
         .sheet(isPresented: $showQuickAdd) {
-            QuickAddView(settings: settings, modelContext: modelContext) {}
+            QuickAddView(settings: settings, modelContext: modelContext, calendarSyncEnabled: settings.calendarSyncEnabled) {}
         }
         .task {
             await transcriber.requestPermissions()
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
             
-            // Set up notification sound callbacks
-            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
-                guard let transcriber = transcriber else { return }
-                if transcriber.isRecording {
-                    transcriber.stop()
-                    isHoldingMic = false
+            // Set up notification callbacks
+            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber, weak wakeWordDetector] in
+                transcriber?.stop()
+                wakeWordDetector?.stopListening()
+                isHoldingMic = false
+            }
+            
+            NotificationsManager.shared.onNotificationSoundComplete = { [weak wakeWordDetector] in
+                // Resume wake word if enabled
+                if settings.wakeWordEnabled {
+                    wakeWordDetector?.startListening()
                 }
             }
             
-            NotificationsManager.shared.onNotificationSoundComplete = {
-                // Don't auto-resume - user controls mic now
+            // Start wake word detection if enabled
+            if settings.wakeWordEnabled {
+                wakeWordDetector.isEnabled = true
+                wakeWordDetector.startListening()
+            }
+        }
+        .onChange(of: settings.wakeWordEnabled) { _, enabled in
+            wakeWordDetector.isEnabled = enabled
+            if enabled {
+                wakeWordDetector.startListening()
+            } else {
+                wakeWordDetector.stopListening()
             }
         }
         .onChange(of: isSettingsOpen) { _, isOpen in
-            if isOpen && isHoldingMic {
-                transcriber.stop()
-                isHoldingMic = false
+            if isOpen {
+                if isHoldingMic {
+                    transcriber.stop()
+                    isHoldingMic = false
+                }
+                wakeWordDetector.stopListening()
+            } else {
+                if settings.wakeWordEnabled {
+                    wakeWordDetector.startListening()
+                }
             }
         }
         .onChange(of: flow.lastSavedReminder) { _, newReminder in
@@ -164,7 +204,13 @@ struct ContentView: View {
                     showUndoBanner = true
                 }
                 
-                // Auto-hide after 5 seconds
+                // Sync to calendar if enabled
+                if settings.calendarSyncEnabled {
+                    Task {
+                        await CalendarSync.shared.syncToCalendar(reminder: reminder)
+                    }
+                }
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                     withAnimation {
                         if lastSavedReminder?.id == reminder.id {
@@ -174,13 +220,34 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .wakeWordDetected)) { _ in
+            handleWakeWordTriggered()
+        }
+    }
+    
+    private func handleWakeWordTriggered() {
+        guard !isHoldingMic && !isSettingsOpen else { return }
+        
+        // Auto-start recording after wake word
+        wakeWordTriggered = true
+        startRecording()
+        
+        // Auto-stop after 10 seconds of recording (if user doesn't manually stop)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if isHoldingMic && wakeWordTriggered {
+                stopRecording()
+                wakeWordTriggered = false
+            }
+        }
     }
     
     private func startRecording() {
-        // Hide undo banner when starting new recording
         withAnimation {
             showUndoBanner = false
         }
+        
+        // Stop wake word detection while recording
+        wakeWordDetector.stopListening()
         
         isHoldingMic = true
         transcriber.transcript = ""
@@ -192,12 +259,20 @@ struct ContentView: View {
     
     private func stopRecording() {
         isHoldingMic = false
+        wakeWordTriggered = false
         transcriber.stop()
         
         let finalText = transcriber.transcript
         
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
+        
+        // Resume wake word detection
+        if settings.wakeWordEnabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                wakeWordDetector.startListening()
+            }
+        }
         
         guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             transcriber.transcript = ""
@@ -219,14 +294,19 @@ struct ContentView: View {
         let notificationID = "\(reminder.id.uuidString)-alert"
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
         
+        // Remove from calendar if sync enabled
+        if settings.calendarSyncEnabled {
+            Task {
+                await CalendarSync.shared.removeFromCalendar(reminder: reminder)
+            }
+        }
+        
         // Delete reminder
         modelContext.delete(reminder)
         
-        // Haptic feedback
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.warning)
         
-        // Hide banner and reset
         withAnimation {
             showUndoBanner = false
         }
@@ -239,6 +319,7 @@ struct QuickAddView: View {
     @Environment(\.dismiss) private var dismiss
     let settings: AppSettings
     let modelContext: ModelContext
+    let calendarSyncEnabled: Bool
     var onDismiss: () -> Void
     
     @State private var title = ""
@@ -311,6 +392,13 @@ struct QuickAddView: View {
         if hasAlert {
             Task {
                 await NotificationsManager.shared.schedule(reminder: item)
+            }
+        }
+        
+        // Sync to calendar
+        if calendarSyncEnabled {
+            Task {
+                await CalendarSync.shared.syncToCalendar(reminder: item)
             }
         }
         

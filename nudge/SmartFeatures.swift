@@ -222,7 +222,7 @@ struct TimeSuggestionEngine {
         // Create suggestions for today/tomorrow at those times
         for hour in topHours {
             // Today (if not past)
-            if var todaySuggestion = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now),
+            if let todaySuggestion = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now),
                todaySuggestion > now {
                 suggestions.append(todaySuggestion)
             }
@@ -339,3 +339,4 @@ struct ReminderSearch {
         return (try? context.fetch(descriptor)) ?? []
     }
 }
+

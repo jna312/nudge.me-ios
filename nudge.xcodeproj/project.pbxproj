@@ -10,9 +10,22 @@
 		68319A2A2F105F1500698EC6 /* nudge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nudge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		68A8A7822F14B2AF003BD750 /* Exceptions for "nudge" folder in "nudge" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 68319A292F105F1500698EC6 /* nudge */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		68319A2C2F105F1500698EC6 /* nudge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				68A8A7822F14B2AF003BD750 /* Exceptions for "nudge" folder in "nudge" target */,
+			);
 			path = nudge;
 			sourceTree = "<group>";
 		};
