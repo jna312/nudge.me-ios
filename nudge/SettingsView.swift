@@ -3,7 +3,7 @@ import EventKit
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @StateObject private var tipsManager = TipsManager.shared
+    @ObservedObject private var tipsManager = TipsManager.shared
     @State private var calendarAccessGranted = false
     @State private var showingImportAlert = false
     @State private var importedCount = 0
