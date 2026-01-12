@@ -109,11 +109,15 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
 
         guard let alertAt = reminder.alertAt else { return }
 
+        // Get selected ringtone
+        let selectedRingtone = UserDefaults.standard.string(forKey: "selectedRingtone") ?? "standard"
+        let notificationSound = getNotificationSound(for: selectedRingtone)
+        
         // Schedule main alert at due time
         let mainContent = UNMutableNotificationContent()
         mainContent.title = "Reminder"
         mainContent.body = reminder.title
-        mainContent.sound = .default
+        mainContent.sound = notificationSound
         mainContent.userInfo = ["reminderID": reminder.id.uuidString]
         mainContent.categoryIdentifier = reminderCategoryIdentifier
         
@@ -133,7 +137,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             let earlyContent = UNMutableNotificationContent()
             earlyContent.title = "Coming Up"
             earlyContent.body = "\(reminder.title) in \(formatMinutes(reminder.earlyAlertMinutes ?? 15))"
-            earlyContent.sound = .default
+            earlyContent.sound = notificationSound
             earlyContent.userInfo = ["reminderID": reminder.id.uuidString, "isEarlyAlert": true]
             earlyContent.categoryIdentifier = reminderCategoryIdentifier
             
@@ -156,6 +160,14 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             return hours == 1 ? "1 hour" : "\(hours) hours"
         }
         return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+    
+    /// Get notification sound for the selected ringtone
+    private func getNotificationSound(for ringtone: String) -> UNNotificationSound {
+        if Bundle.main.url(forResource: ringtone, withExtension: "caf") != nil {
+            return UNNotificationSound(named: UNNotificationSoundName("\(ringtone).caf"))
+        }
+        return .default
     }
 }
 

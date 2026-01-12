@@ -129,6 +129,21 @@ struct SettingsView: View {
                 Text("Early Alerts")
             }
             
+            Section {
+                NavigationLink {
+                    RingtonePickerView(selectedRingtone: $settings.selectedRingtone)
+                } label: {
+                    HStack {
+                        Text("Reminder Sound")
+                        Spacer()
+                        Text(RingtoneManager.Ringtone(rawValue: settings.selectedRingtone)?.displayName ?? "Standard")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Sound")
+            }
+            
             Section("Writing style") {
                 Picker("Reminder text", selection: $settings.writingStyle) {
                     Text("Sentence Case").tag("sentence")
