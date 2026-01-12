@@ -3,17 +3,30 @@
   <!-- Black background with iOS-style rounded corners -->
   <rect width="1024" height="1024" rx="224" ry="224" fill="#000000"/>
   
-  <!-- White elegant cursive 'n' - centered -->
-  <g fill="none" stroke="#FFFFFF" stroke-width="48" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Flowing script 'n' -->
-    <path d="M 320 680
-             C 320 580, 340 420, 360 350
-             C 380 280, 400 260, 420 280
-             C 440 300, 420 380, 400 480
-             C 380 580, 380 640, 400 660
-             C 440 700, 500 500, 540 380
-             C 580 260, 620 240, 660 280
-             C 700 320, 680 440, 660 560
-             C 640 680, 660 720, 720 680"/>
+  <!-- White modern brush script 'n' - centered -->
+  <g fill="#FFFFFF">
+    <path d="M 340 720
+             Q 320 620, 340 520
+             Q 360 420, 380 360
+             Q 400 300, 420 320
+             Q 440 340, 430 400
+             Q 420 480, 420 540
+             L 420 560
+             Q 440 400, 500 340
+             Q 560 280, 620 320
+             Q 680 360, 680 460
+             Q 680 560, 660 660
+             Q 650 720, 680 700
+             Q 700 690, 710 680
+             L 700 720
+             Q 660 760, 620 740
+             Q 580 720, 600 620
+             Q 620 520, 620 440
+             Q 620 360, 580 380
+             Q 540 400, 500 480
+             Q 460 560, 460 620
+             Q 460 680, 420 720
+             Q 380 760, 340 720
+             Z"/>
   </g>
 </svg>
