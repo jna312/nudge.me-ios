@@ -14,4 +14,7 @@ final class AppSettings: ObservableObject {
     
     // Calendar sync
     @AppStorage("calendarSyncEnabled") var calendarSyncEnabled: Bool = false
+    
+    // Security
+    @AppStorage("biometricLockEnabled") var biometricLockEnabled: Bool = false
 }

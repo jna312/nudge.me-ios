@@ -267,10 +267,10 @@
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We transcribe your voice to create reminders.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We transcribe your voice to create reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -303,10 +303,10 @@
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We transcribe your voice to create reminders.";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We transcribe your voice to create reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

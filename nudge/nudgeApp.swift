@@ -4,21 +4,30 @@ import SwiftUI
 @main
 struct NudgeApp: App {
     @StateObject private var settings = AppSettings()
+    @StateObject private var biometricAuth = BiometricAuth.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     init() {
-        // Initialize NotificationsManager early so delegate is set for foreground notifications
         _ = NotificationsManager.shared
     }
 
     var body: some Scene {
         WindowGroup {
-            if settings.didCompleteOnboarding {
-                RootView(settings: settings)
-            } else {
-                OnboardingView(settings: settings)
+            Group {
+                if !settings.didCompleteOnboarding {
+                    OnboardingView(settings: settings)
+                } else if settings.biometricLockEnabled && !biometricAuth.isUnlocked {
+                    LockScreenView()
+                } else {
+                    RootView(settings: settings)
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .background && settings.biometricLockEnabled {
+                    biometricAuth.lock()
+                }
             }
         }
         .modelContainer(for: ReminderItem.self)
     }
 }
-

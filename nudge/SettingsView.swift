@@ -12,13 +12,31 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // Help & Instructions - At the top for visibility
             Section {
                 NavigationLink {
                     HelpView()
                 } label: {
                     Label("How to Use Nudge", systemImage: "questionmark.circle")
                 }
+            }
+            
+            Section {
+                Toggle("Require \(BiometricAuth.shared.biometricType)", isOn: $settings.biometricLockEnabled)
+                    .onChange(of: settings.biometricLockEnabled) { _, enabled in
+                        if enabled {
+                            Task {
+                                let success = await BiometricAuth.shared.authenticate()
+                                if !success {
+                                    settings.biometricLockEnabled = false
+                                }
+                            }
+                        }
+                    }
+                Text("Require \(BiometricAuth.shared.biometricType) to open Nudge.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Security")
             }
             
             Section("Daily closeout") {
@@ -54,7 +72,6 @@ struct SettingsView: View {
                                 calendarAccessGranted = await CalendarSync.shared.requestAccess()
                                 
                                 if calendarAccessGranted {
-                                    // Sync all existing reminders
                                     let result = await CalendarSync.shared.syncAllReminders(from: modelContext)
                                     syncMessage = "Synced \(result.synced) reminder\(result.synced == 1 ? "" : "s") to Calendar"
                                     if result.failed > 0 {
@@ -73,11 +90,8 @@ struct SettingsView: View {
                 
                 if isSyncing {
                     HStack {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Syncing...")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                        ProgressView().scaleEffect(0.8)
+                        Text("Syncing...").font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if settings.calendarSyncEnabled {
                     Text("Reminders sync to \"Nudge Reminders\" calendar.")
@@ -89,9 +103,7 @@ struct SettingsView: View {
                             isSyncing = true
                             let result = await CalendarSync.shared.syncAllReminders(from: modelContext)
                             syncMessage = "Synced \(result.synced) reminder\(result.synced == 1 ? "" : "s")"
-                            if result.failed > 0 {
-                                syncMessage += " (\(result.failed) failed)"
-                            }
+                            if result.failed > 0 { syncMessage += " (\(result.failed) failed)" }
                             showingSyncAlert = true
                             isSyncing = false
                         }
@@ -118,14 +130,9 @@ struct SettingsView: View {
             }
 
             Section("Advanced") {
-                Button("Reset Tips") {
-                    tipsManager.resetAllTips()
-                }
-                
-                Button("Reset Onboarding") {
-                    settings.didCompleteOnboarding = false
-                }
-                .foregroundStyle(.red)
+                Button("Reset Tips") { tipsManager.resetAllTips() }
+                Button("Reset Onboarding") { settings.didCompleteOnboarding = false }
+                    .foregroundStyle(.red)
             }
         }
         .navigationTitle("Settings")
@@ -157,23 +164,9 @@ struct SiriShortcutsInfoView: View {
     var body: some View {
         List {
             Section {
-                ShortcutRow(
-                    title: "Add a Nudge",
-                    phrase: "\"Hey Siri, add a nudge in Nudge\"",
-                    icon: "plus.circle"
-                )
-                
-                ShortcutRow(
-                    title: "List My Nudges",
-                    phrase: "\"Hey Siri, show my nudges\"",
-                    icon: "list.bullet"
-                )
-                
-                ShortcutRow(
-                    title: "Quick Nudge",
-                    phrase: "\"Hey Siri, quick nudge\" (1 hour)",
-                    icon: "clock"
-                )
+                ShortcutRow(title: "Add a Nudge", phrase: "\"Hey Siri, add a nudge\"", icon: "plus.circle")
+                ShortcutRow(title: "List My Nudges", phrase: "\"Hey Siri, show my nudges\"", icon: "list.bullet")
+                ShortcutRow(title: "Quick Nudge", phrase: "\"Hey Siri, quick nudge\" (1 hour)", icon: "clock")
             } header: {
                 Text("Available Shortcuts")
             } footer: {
@@ -198,18 +191,10 @@ struct ShortcutRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.blue)
-                .frame(width: 28)
-            
+            Image(systemName: icon).font(.title3).foregroundStyle(.blue).frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text(phrase)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(title).font(.subheadline).fontWeight(.medium)
+                Text(phrase).font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
