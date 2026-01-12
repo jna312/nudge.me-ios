@@ -11,32 +11,42 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     
     override init() {
         super.init()
-        // Set delegate immediately so foreground notifications work
         UNUserNotificationCenter.current().delegate = self
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        // Manually play sound since the microphone audio session may block system sounds
-        playNotificationSound()
+        // Play sound on main thread since we're in async context
+        await MainActor.run {
+            playNotificationSound()
+        }
         
-        // Show notifications even when app is in foreground
         return [.banner, .sound, .badge, .list]
     }
     
     /// Play notification sound manually - works even when microphone is active
+    @MainActor
     private func playNotificationSound() {
-        // Temporarily configure audio session to allow playback alongside recording
+        print("🔔 Playing foreground notification sound...")
+        
+        // Configure audio session to allow playback even while recording
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
-            try session.setActive(true)
+            // Use playAndRecord with duckOthers to lower other audio and play our sound
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers, .allowBluetooth])
+            try session.setActive(true, options: [])
+            print("🔔 Audio session configured for playAndRecord")
         } catch {
             print("🔔 Audio session error: \(error)")
         }
         
-        // Play the system notification sound
-        AudioServicesPlayAlertSound(SystemSoundID(1007)) // Default notification sound
+        // Play alert sound (with vibration on supported devices)
+        AudioServicesPlayAlertSound(SystemSoundID(1007))
+        
+        // Also trigger vibration as backup feedback
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        
+        print("🔔 Sound triggered")
     }
     
     func requestPermission() async {
@@ -46,7 +56,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func registerCategories() {
-        // Reminder actions
         let done = UNNotificationAction(identifier: "REMINDER_DONE", title: "Done", options: [])
         let snooze10 = UNNotificationAction(identifier: "REMINDER_SNOOZE_10", title: "Snooze 10m", options: [])
 
@@ -57,7 +66,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
             options: []
         )
 
-        // Closeout actions
         let markAllDone = UNNotificationAction(identifier: "CLOSEOUT_MARK_ALL_DONE", title: "Mark all done", options: [])
         let snoozeAllTomorrow = UNNotificationAction(identifier: "CLOSEOUT_SNOOZE_ALL_TOMORROW", title: "Snooze all to tomorrow", options: [])
         let openApp = UNNotificationAction(identifier: "CLOSEOUT_OPEN_APP", title: "Open", options: [.foreground])
@@ -99,7 +107,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         let center = UNUserNotificationCenter.current()
         let notificationID = "\(reminder.id.uuidString)-alert"
 
-        // Remove existing notification for this reminder
         center.removePendingNotificationRequests(withIdentifiers: [notificationID])
 
         guard let alertAt = reminder.alertAt else { return }
@@ -107,7 +114,7 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         let content = UNMutableNotificationContent()
         content.title = "Reminder"
         content.body = reminder.title
-        content.sound = notificationSound(for: soundSetting)
+        content.sound = .default
         content.userInfo = ["reminderID": reminder.id.uuidString]
         content.categoryIdentifier = reminderCategoryIdentifier
 
@@ -118,12 +125,5 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         try? await center.add(req)
         
         print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt)")
-    }
-    
-    private func notificationSound(for setting: String) -> UNNotificationSound? {
-        if setting == "silent" {
-            return nil
-        }
-        return .default
     }
 }

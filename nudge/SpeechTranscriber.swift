@@ -46,7 +46,7 @@ final class SpeechTranscriber: ObservableObject {
         isRecording = true
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.record, mode: .measurement)
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
         try session.setActive(true)
 
         request = SFSpeechAudioBufferRecognitionRequest()
