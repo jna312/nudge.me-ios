@@ -1,5 +1,6 @@
 import LocalAuthentication
 import SwiftUI
+import Combine
 
 final class BiometricAuth: ObservableObject {
     static let shared = BiometricAuth()
@@ -121,9 +122,18 @@ struct LockScreenView: View {
             }
         }
         .alert("Authentication Failed", isPresented: $showError) {
-            Button("Try Again") { Task { await auth.authenticate() } }
+            Button("Try Again") {
+                Task {
+                    let success = await auth.authenticate()
+                    if !success { showError = true }
+                }
+            }
             Button("Cancel", role: .cancel) {}
         }
-        .task { await auth.authenticate() }
+        .task {
+            let success = await auth.authenticate()
+            if !success { showError = true }
+        }
     }
 }
+
