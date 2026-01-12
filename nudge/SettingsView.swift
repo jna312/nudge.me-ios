@@ -160,6 +160,16 @@ struct SettingsView: View {
                 Text("Shortcuts")
             }
 
+            Section {
+                Button {
+                    openFeedbackEmail()
+                } label: {
+                    Label("Send Feedback", systemImage: "envelope")
+                }
+            } header: {
+                Text("Feedback")
+            }
+            
             Section("Advanced") {
                 Button("Reset Tips") { tipsManager.resetAllTips() }
                 Button("Reset Onboarding") { settings.didCompleteOnboarding = false }
@@ -196,6 +206,16 @@ struct SettingsView: View {
             return hours == 1 ? "1 hour" : "\(hours) hour"
         }
         return "\(minutes) minute"
+    }
+    
+    private func openFeedbackEmail() {
+        let email = "jna312@gmail.com"
+        let subject = "NUDGE FEEDBACK: "
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
+        
+        if let url = URL(string: "mailto:\(email)?subject=\(encodedSubject)") {
+            UIApplication.shared.open(url)
+        }
     }
 }
 
