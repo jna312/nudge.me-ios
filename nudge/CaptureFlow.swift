@@ -3,9 +3,9 @@ import SwiftData
 import Combine
 
 enum CaptureStep: Equatable {
-    case idle                     // ready to listen
-    case gotTask(title: String)   // heard a task but no time yet
-    case gotWhen(title: String, dueAt: Date) // have task + due time
+    case idle
+    case gotTask(title: String)
+    case needsTime(title: String, baseDate: Date, periodHint: String?)
 }
 
 @MainActor
@@ -23,7 +23,6 @@ final class CaptureFlow: ObservableObject {
         lastHeard = ""
     }
 
-    /// Call this AFTER the user hits Stop (i.e., you have a final transcript).
     func handleTranscript(
         _ transcript: String,
         settings: AppSettings,
@@ -36,49 +35,130 @@ final class CaptureFlow: ObservableObject {
         switch step {
 
         case .idle:
-            // Try to parse task + time in one shot (e.g. "Call dentist tomorrow at 3pm")
             let result = parser.parse(t)
 
             switch result {
             case .complete(let draft):
-                // If we got both task AND time, save immediately with alert
                 if let due = draft.dueAt {
                     await saveReminder(
                         title: draft.title,
                         dueAt: due,
-                        wantsAlert: true,
                         settings: settings,
                         modelContext: modelContext
                     )
                 } else {
-                    // Only got task, need time
                     step = .gotTask(title: draft.title)
-                    prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
+                    prompt = "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")"
                 }
 
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
                 prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
+                
+            case .needsTime(let title, let baseDate, let periodHint):
+                step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
+                prompt = promptForTime(periodHint: periodHint)
             }
 
         case .gotTask(let title):
             // User is providing the time separately
-            guard let due = parseDueDate(from: t) else {
+            let result = parser.parse(t)
+            
+            switch result {
+            case .complete(let draft):
+                if let due = draft.dueAt {
+                    await saveReminder(
+                        title: title,
+                        dueAt: due,
+                        settings: settings,
+                        modelContext: modelContext
+                    )
+                } else {
+                    prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
+                }
+                
+            case .needsTime(_, let baseDate, let periodHint):
+                step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
+                prompt = promptForTime(periodHint: periodHint)
+                
+            case .needsWhen:
                 prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
-                return
             }
-            // Save immediately with alert
-            await saveReminder(
-                title: title,
-                dueAt: due,
-                wantsAlert: true,
-                settings: settings,
-                modelContext: modelContext
-            )
-
-        case .gotWhen:
-            reset()
+            
+        case .needsTime(let title, let baseDate, _):
+            // User should be providing a specific time now
+            if let time = parseTimeOnly(t) {
+                let due = combineDateAndTime(baseDate: baseDate, time: time)
+                await saveReminder(
+                    title: title,
+                    dueAt: due,
+                    settings: settings,
+                    modelContext: modelContext
+                )
+            } else {
+                prompt = "What time? (e.g. \"9 AM\" or \"3:30 PM\")"
+            }
         }
+    }
+    
+    private func promptForTime(periodHint: String?) -> String {
+        switch periodHint {
+        case "morning":
+            return "What time in the morning? (e.g. \"9 AM\")"
+        case "afternoon":
+            return "What time in the afternoon? (e.g. \"2 PM\")"
+        case "evening":
+            return "What time in the evening? (e.g. \"7 PM\")"
+        case "night":
+            return "What time at night? (e.g. \"9 PM\")"
+        default:
+            return "What time? (e.g. \"3 PM\")"
+        }
+    }
+    
+    private func parseTimeOnly(_ s: String) -> (hour: Int, minute: Int)? {
+        let lower = normalizeNumberWords(s.lowercased())
+        
+        // Match patterns like "9", "9 AM", "9:30 PM", "at 3"
+        let patterns = [
+            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,  // with AM/PM
+            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?"#              // without AM/PM
+        ]
+        
+        for pattern in patterns {
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let range = NSRange(lower.startIndex..., in: lower)
+            
+            if let m = re.firstMatch(in: lower, range: range),
+               let hrR = Range(m.range(at: 1), in: lower) {
+                
+                var hour = Int(lower[hrR]) ?? 0
+                var minute = 0
+                
+                if let minR = Range(m.range(at: 2), in: lower) {
+                    minute = Int(lower[minR]) ?? 0
+                }
+                
+                if let ampmR = Range(m.range(at: 3), in: lower) {
+                    let ampm = String(lower[ampmR]).lowercased()
+                    if ampm == "pm" && hour < 12 { hour += 12 }
+                    if ampm == "am" && hour == 12 { hour = 0 }
+                }
+                
+                if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
+                    return (hour, minute)
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    private func combineDateAndTime(baseDate: Date, time: (hour: Int, minute: Int)) -> Date {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: baseDate)
+        comps.hour = time.hour
+        comps.minute = time.minute
+        return Calendar.current.date(from: comps) ?? baseDate
     }
 
     // MARK: - Save
@@ -86,108 +166,26 @@ final class CaptureFlow: ObservableObject {
     private func saveReminder(
         title: String,
         dueAt: Date,
-        wantsAlert: Bool,
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
         let styledTitle = applyWritingStyle(title, style: settings.writingStyle)
 
-        let alertAt: Date? = wantsAlert ? dueAt : nil
-
         let item = ReminderItem(
             title: styledTitle,
             dueAt: dueAt,
-            alertAt: alertAt
+            alertAt: dueAt
         )
 
         modelContext.insert(item)
         lastSavedReminder = item
         try? modelContext.save()
 
-        // Schedule alert notification
         await NotificationsManager.shared.schedule(reminder: item)
-
-        // Schedule daily closeout if reminders exist today
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
 
-        // Ready for next reminder
         reset()
         prompt = "Saved! What's next?"
-    }
-
-    // MARK: - Simple parsing helpers
-
-    private func parseDueDate(from s: String) -> Date? {
-        let lower = normalizeNumberWords(s)
-        let now = Date()
-        var base = now
-
-        // Relative: "in X minutes/hours"
-        do {
-            let pattern = #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours)"#
-            let re = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-            let range = NSRange(lower.startIndex..., in: lower)
-            if let m = re.firstMatch(in: lower, range: range),
-               let nRange = Range(m.range(at: 1), in: lower),
-               let uRange = Range(m.range(at: 2), in: lower),
-               let n = Int(lower[nRange]) {
-
-                let unit = String(lower[uRange])
-                let seconds: TimeInterval
-                switch unit {
-                case "minute", "minutes": seconds = TimeInterval(n * 60)
-                case "hour", "hours":     seconds = TimeInterval(n * 3600)
-                default:                  seconds = TimeInterval(n * 60)
-                }
-                return now.addingTimeInterval(seconds)
-            }
-        } catch { /* ignore */ }
-
-        if lower.contains("tomorrow") {
-            base = Calendar.current.date(byAdding: .day, value: 1, to: base) ?? base
-        }
-
-        // Time words
-        if lower.contains("morning") {
-            return setTime(on: base, hour: 9, minute: 0)
-        }
-        if lower.contains("afternoon") {
-            return setTime(on: base, hour: 15, minute: 0)
-        }
-        if lower.contains("evening") || lower.contains("tonight") {
-            return setTime(on: base, hour: 19, minute: 0)
-        }
-
-        // "at 7", "at 7 pm", "at 7:30 am"
-        let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
-        let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-        let range = NSRange(lower.startIndex..., in: lower)
-
-        if let m = re?.firstMatch(in: lower, range: range),
-           let hrR = Range(m.range(at: 1), in: lower) {
-            let hourRaw = Int(lower[hrR]) ?? 9
-            var minute = 0
-            if let minRange = Range(m.range(at: 2), in: lower) {
-                minute = Int(lower[minRange]) ?? 0
-            }
-            var hour = hourRaw
-            if let ampmRange = Range(m.range(at: 3), in: lower) {
-                let ampm = lower[ampmRange]
-                if ampm == "pm", hour < 12 { hour += 12 }
-                if ampm == "am", hour == 12 { hour = 0 }
-            }
-            return setTime(on: base, hour: hour, minute: minute)
-        }
-
-        // No time found
-        return nil
-    }
-
-    private func setTime(on date: Date, hour: Int, minute: Int) -> Date? {
-        var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        comps.hour = hour
-        comps.minute = minute
-        return Calendar.current.date(from: comps)
     }
 
     private func normalizeNumberWords(_ text: String) -> String {

@@ -3,6 +3,7 @@ import Foundation
 enum ParseResult {
     case complete(ReminderDraft)
     case needsWhen(title: String, raw: String)
+    case needsTime(title: String, baseDate: Date, periodHint: String?) // Has day but needs specific time
 }
 
 final class ReminderParser {
@@ -10,113 +11,96 @@ final class ReminderParser {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return .needsWhen(title: "", raw: text) }
 
-        let due = parseDueDate(cleaned)
+        let lower = normalizeNumberWords(cleaned.lowercased())
         let title = stripSchedulingPhrases(from: cleaned)
-
-        if due == nil {
-            return .needsWhen(title: title.isEmpty ? cleaned : title, raw: cleaned)
+        let finalTitle = title.isEmpty ? cleaned : title
+        
+        // Check for relative time first (these are complete)
+        if let relativeDate = parseRelativeTime(lower) {
+            return .complete(ReminderDraft(
+                rawTranscript: cleaned,
+                title: finalTitle,
+                dueAt: relativeDate,
+                wantsAlert1: true,
+                alert2OffsetSeconds: nil
+            ))
         }
-
-        return .complete(ReminderDraft(
-            rawTranscript: cleaned,
-            title: title.isEmpty ? cleaned : title,
-            dueAt: due,
-            wantsAlert1: true,
-            alert2OffsetSeconds: nil
-        ))
+        
+        // Check for explicit time (at X:XX)
+        let hasExplicitTime = hasExplicitTimePattern(lower)
+        
+        // Check for day reference
+        let (baseDate, hasDay) = parseDayReference(lower)
+        
+        // Check for vague time-of-day words
+        let periodHint = parseTimePeriod(lower)
+        
+        if hasExplicitTime {
+            // Has explicit time like "at 3 PM"
+            if let due = parseExplicitTime(lower, baseDate: baseDate) {
+                return .complete(ReminderDraft(
+                    rawTranscript: cleaned,
+                    title: finalTitle,
+                    dueAt: due,
+                    wantsAlert1: true,
+                    alert2OffsetSeconds: nil
+                ))
+            }
+        }
+        
+        if periodHint != nil || hasDay {
+            // Has a day or vague period - need specific time
+            return .needsTime(title: finalTitle, baseDate: baseDate, periodHint: periodHint)
+        }
+        
+        // No time info at all
+        return .needsWhen(title: finalTitle, raw: cleaned)
     }
-
-    private func parseDueDate(_ s: String) -> Date? {
-        let lower = normalizeNumberWords(s)
+    
+    // MARK: - Relative time ("in X minutes/hours")
+    
+    private func parseRelativeTime(_ lower: String) -> Date? {
+        let pattern = #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours|day|days)"#
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(lower.startIndex..., in: lower)
+        
+        guard let m = re.firstMatch(in: lower, range: range),
+              let nRange = Range(m.range(at: 1), in: lower),
+              let uRange = Range(m.range(at: 2), in: lower),
+              let n = Int(lower[nRange]) else { return nil }
+        
+        let unit = String(lower[uRange])
+        let seconds: TimeInterval
+        switch unit {
+        case "minute", "minutes": seconds = TimeInterval(n * 60)
+        case "hour", "hours":     seconds = TimeInterval(n * 3600)
+        case "day", "days":       seconds = TimeInterval(n * 86400)
+        default:                  seconds = TimeInterval(n * 60)
+        }
+        return Date().addingTimeInterval(seconds)
+    }
+    
+    // MARK: - Day reference
+    
+    private func parseDayReference(_ lower: String) -> (Date, Bool) {
         let now = Date()
         var baseDate = now
         var hasDay = false
-
-        // Relative: "in 30 minutes" / "in 2 hours" / "in 1 day"
-        do {
-            let pattern = #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours|day|days)"#
-            let re = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-            let range = NSRange(lower.startIndex..., in: lower)
-            if let m = re.firstMatch(in: lower, range: range),
-               let nRange = Range(m.range(at: 1), in: lower),
-               let uRange = Range(m.range(at: 2), in: lower),
-               let n = Int(lower[nRange]) {
-
-                let unit = String(lower[uRange])
-                let seconds: TimeInterval
-                switch unit {
-                case "minute", "minutes": seconds = TimeInterval(n * 60)
-                case "hour", "hours":     seconds = TimeInterval(n * 3600)
-                case "day", "days":       seconds = TimeInterval(n * 86400)
-                default:                  seconds = TimeInterval(n * 60)
-                }
-                return now.addingTimeInterval(seconds)
-            }
-        } catch { /* ignore */ }
-
-        // Day keywords
+        
         if lower.contains("tomorrow") {
-            baseDate = Calendar.current.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
+            baseDate = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
             hasDay = true
         } else if lower.contains("today") {
-            baseDate = now
             hasDay = true
         } else if let nextWeekday = parseNextWeekday(from: lower) {
             baseDate = nextWeekday
             hasDay = true
         }
-
-        // Time-of-day words: morning/afternoon/evening
-        if lower.contains("morning") {
-            return setTime(on: baseDate, hour: 9, minute: 0)
-        }
-        if lower.contains("afternoon") {
-            return setTime(on: baseDate, hour: 15, minute: 0)
-        }
-        if lower.contains("evening") || lower.contains("tonight") {
-            return setTime(on: baseDate, hour: 19, minute: 0)
-        }
-
-        // "at 7", "at 7 pm", "at 7:30 am"
-        do {
-            let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
-            let re = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-            let range = NSRange(lower.startIndex..., in: lower)
-
-            if let m = re.firstMatch(in: lower, range: range),
-               let hrR = Range(m.range(at: 1), in: lower) {
-
-                let hourRaw = Int(lower[hrR]) ?? 9
-                var minute = 0
-                if let minR = Range(m.range(at: 2), in: lower) { minute = Int(lower[minR]) ?? 0 }
-
-                var hour = hourRaw
-                if let ampmR = Range(m.range(at: 3), in: lower) {
-                    let ampm = lower[ampmR]
-                    if ampm == "pm", hour < 12 { hour += 12 }
-                    if ampm == "am", hour == 12 { hour = 0 }
-                }
-
-                // If they said "at 3" with no day and that time already passed today -> tomorrow
-                if !hasDay {
-                    if let candidateToday = setTime(on: now, hour: hour, minute: minute), candidateToday <= now {
-                        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
-                        return setTime(on: tomorrow, hour: hour, minute: minute)
-                    }
-                    return setTime(on: now, hour: hour, minute: minute)
-                }
-
-                return setTime(on: baseDate, hour: hour, minute: minute)
-            }
-        } catch { /* ignore */ }
-
-        // If they gave a day word but no time -> return nil (require time)
-        // User must specify a time
-        return nil
+        
+        return (baseDate, hasDay)
     }
     
     private func parseNextWeekday(from lower: String) -> Date? {
-        // supports: "next monday", "next tuesday", etc.
         guard lower.contains("next") else { return nil }
         let weekdays: [(String, Int)] = [
             ("sunday", 1), ("monday", 2), ("tuesday", 3), ("wednesday", 4),
@@ -131,11 +115,60 @@ final class ReminderParser {
         if delta <= 0 { delta += 7 }
         return cal.date(byAdding: .day, value: delta, to: now)
     }
-
-    private func containsWeekday(_ lower: String) -> Bool {
-        return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"].contains { lower.contains($0) }
+    
+    // MARK: - Time period (vague)
+    
+    private func parseTimePeriod(_ lower: String) -> String? {
+        if lower.contains("morning") { return "morning" }
+        if lower.contains("afternoon") { return "afternoon" }
+        if lower.contains("evening") || lower.contains("tonight") { return "evening" }
+        if lower.contains("night") { return "night" }
+        return nil
     }
-
+    
+    // MARK: - Explicit time
+    
+    private func hasExplicitTimePattern(_ lower: String) -> Bool {
+        let pattern = #"at\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+        let range = NSRange(lower.startIndex..., in: lower)
+        return re.firstMatch(in: lower, range: range) != nil
+    }
+    
+    private func parseExplicitTime(_ lower: String, baseDate: Date) -> Date? {
+        let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let range = NSRange(lower.startIndex..., in: lower)
+        
+        guard let m = re.firstMatch(in: lower, range: range),
+              let hrR = Range(m.range(at: 1), in: lower) else { return nil }
+        
+        let hourRaw = Int(lower[hrR]) ?? 9
+        var minute = 0
+        if let minR = Range(m.range(at: 2), in: lower) { minute = Int(lower[minR]) ?? 0 }
+        
+        var hour = hourRaw
+        if let ampmR = Range(m.range(at: 3), in: lower) {
+            let ampm = lower[ampmR]
+            if ampm == "pm", hour < 12 { hour += 12 }
+            if ampm == "am", hour == 12 { hour = 0 }
+        }
+        
+        // If no day specified and time already passed -> tomorrow
+        let now = Date()
+        let (_, hasDay) = parseDayReference(lower)
+        if !hasDay {
+            if let candidateToday = setTime(on: now, hour: hour, minute: minute), candidateToday <= now {
+                let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+                return setTime(on: tomorrow, hour: hour, minute: minute)
+            }
+            return setTime(on: now, hour: hour, minute: minute)
+        }
+        
+        return setTime(on: baseDate, hour: hour, minute: minute)
+    }
+    
+    // MARK: - Helpers
 
     private func setTime(on date: Date, hour: Int, minute: Int) -> Date? {
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
@@ -165,6 +198,7 @@ final class ReminderParser {
             #"(?i)\bmorning\b"#,
             #"(?i)\bafternoon\b"#,
             #"(?i)\bevening\b"#,
+            #"(?i)\bnight\b"#,
             #"(?i)\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b"#,
             #"(?i)\bin\s+\d+\s*(minute|minutes|hour|hours|day|days)\b"#,
             #"(?i)\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#
