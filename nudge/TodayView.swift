@@ -18,7 +18,6 @@ struct RemindersView: View {
     
     @State private var isCompletedExpanded = false
     @State private var editingReminder: ReminderItem?
-    @State private var showCelebration = false
     
     private let emptyStateMessages = [
         ("No Reminders", "checkmark.circle", "You're all caught up!"),
@@ -80,10 +79,13 @@ struct RemindersView: View {
         Group {
             if openReminders.isEmpty && completedReminders.isEmpty {
                 let state = randomEmptyState
+                let emptyTitle = state.0
+                let emptyImage = state.1
+                let emptyDescription = state.2
                 ContentUnavailableView(
-                    state.0,
-                    systemImage: state.1,
-                    description: Text(state.2)
+                    emptyTitle,
+                    systemImage: emptyImage,
+                    description: Text(emptyDescription)
                 )
             } else {
                 List {
@@ -123,7 +125,7 @@ struct RemindersView: View {
                     
                     if !completedReminders.isEmpty {
                         Section {
-                            DisclosureGroup(isExpanded: \$isCompletedExpanded) {
+                            DisclosureGroup(isExpanded: $isCompletedExpanded) {
                                 ForEach(completedReminders) { reminder in
                                     CompletedReminderRow(reminder: reminder)
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -151,7 +153,7 @@ struct RemindersView: View {
             }
         }
         .navigationTitle("Reminders")
-        .sheet(item: \$editingReminder) { reminder in
+        .sheet(item: $editingReminder) { reminder in
             EditReminderView(reminder: reminder)
         }
         .overlay {
@@ -377,15 +379,15 @@ struct EditReminderView: View {
         NavigationStack {
             Form {
                 Section("Reminder") {
-                    TextField("Title", text: \$title)
+                    TextField("Title", text: $title)
                 }
                 
                 Section("When") {
-                    DatePicker("Due Date", selection: \$dueDate, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
                 }
                 
                 Section("Alert") {
-                    Toggle("Alert at due time", isOn: \$hasAlert)
+                    Toggle("Alert at due time", isOn: $hasAlert)
                 }
                 
                 Section {
@@ -504,7 +506,7 @@ struct CelebrationView: View {
             particles.append(particle)
             
             withAnimation(.easeIn(duration: Double.random(in: 1.5...2.5)).delay(Double(i) * 0.05)) {
-                if let index = particles.firstIndex(where: { \$0.id == i }) {
+                if let index = particles.firstIndex(where: { $0.id == i }) {
                     particles[index].position.y = screenHeight + 50
                     particles[index].position.x += CGFloat.random(in: -100...100)
                     particles[index].opacity = 0
@@ -521,3 +523,4 @@ struct ConfettiParticle: Identifiable {
     let size: CGFloat
     var opacity: Double
 }
+
