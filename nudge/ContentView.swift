@@ -137,7 +137,6 @@ struct ContentView: View {
             await transcriber.requestPermissions()
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
-            NotificationsManager.shared.currentSoundSetting = settings.notificationSound
             
             // Set up notification sound callbacks
             NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
@@ -151,9 +150,6 @@ struct ContentView: View {
             NotificationsManager.shared.onNotificationSoundComplete = {
                 // Don't auto-resume - user controls mic now
             }
-        }
-        .onChange(of: settings.notificationSound) { _, newSound in
-            NotificationsManager.shared.currentSoundSetting = newSound
         }
         .onChange(of: isSettingsOpen) { _, isOpen in
             if isOpen && isHoldingMic {

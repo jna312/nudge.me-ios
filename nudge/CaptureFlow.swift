@@ -120,7 +120,7 @@ final class CaptureFlow: ObservableObject {
         try? modelContext.save()
 
         // Schedule alert notification
-        await NotificationsManager.shared.schedule(reminder: item, soundSetting: settings.notificationSound)
+        await NotificationsManager.shared.schedule(reminder: item)
 
         // Schedule daily closeout if reminders exist today
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)

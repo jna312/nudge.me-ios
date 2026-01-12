@@ -29,8 +29,7 @@ enum ReminderActions {
 
         try? context.save()
         
-        let soundSetting = UserDefaults.standard.string(forKey: "notificationSound") ?? "default"
-        await NotificationsManager.shared.schedule(reminder: item, soundSetting: soundSetting)
+        await NotificationsManager.shared.schedule(reminder: item)
     }
 
     static func markAllOpenDoneForToday() async {

@@ -1,11 +1,7 @@
 import SwiftUI
-import AudioToolbox
-import AVFAudio
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @State private var lastTapped: String = "None"
-    @State private var showingAlert = false
 
     var body: some View {
         Form {
@@ -38,30 +34,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section {
-                ForEach(NotificationSoundOption.allCases) { option in
-                    HStack {
-                        Text(option.displayName)
-                        Spacer()
-                        if settings.notificationSound == option.rawValue {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        lastTapped = option.displayName
-                        settings.notificationSound = option.rawValue
-                        playSound(option)
-                    }
-                }
-            } header: {
-                Text("Notification Sound")
-            } footer: {
-                Text("Last tapped: \(lastTapped)")
-                    .foregroundStyle(.orange)
-            }
-
             Section("Writing style") {
                 Picker("Reminder text", selection: $settings.writingStyle) {
                     Text("Sentence Case").tag("sentence")
@@ -71,54 +43,13 @@ struct SettingsView: View {
             }
 
             Section("Debug") {
-                Text("Test Sound (ID 1007)")
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        print("🔊 Testing sound...")
-                        do {
-                            let session = AVAudioSession.sharedInstance()
-                            try session.setCategory(.ambient)
-                            try session.setActive(true)
-                        } catch {
-                            print("🔊 Error: \(error)")
-                        }
-                        AudioServicesPlayAlertSound(1007)
-                    }
-                
-                Text("Reset onboarding")
-                    .foregroundStyle(.red)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        settings.didCompleteOnboarding = false
-                    }
+                Button("Reset onboarding") {
+                    settings.didCompleteOnboarding = false
+                }
+                .foregroundStyle(.red)
             }
         }
         .navigationTitle("Settings")
-        .alert("Sound Tapped", isPresented: $showingAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("You tapped: \(lastTapped)")
-        }
-    }
-    
-    private func playSound(_ option: NotificationSoundOption) {
-        showingAlert = true
-        
-        guard option != .silent else { return }
-        
-        let soundID = option.systemSoundID
-        
-        // Force reset audio session to allow playback
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.ambient, mode: .default)
-            try session.setActive(true)
-        } catch {
-            // Ignore errors
-        }
-        
-        // Play alert sound
-        AudioServicesPlayAlertSound(soundID)
     }
 
     private func minutesFromMidnight(_ date: Date) -> Int {
@@ -141,4 +72,3 @@ struct SettingsView: View {
         return formatter.string(from: date)
     }
 }
-

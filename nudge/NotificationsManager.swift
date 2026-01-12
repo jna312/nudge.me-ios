@@ -13,9 +13,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     var onNotificationWillPresent: (() -> Void)?
     var onNotificationSoundComplete: (() -> Void)?
     
-    // Current sound setting (set by ContentView)
-    var currentSoundSetting: String = "default"
-    
     override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
@@ -25,49 +22,18 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         print("🔔 Notification arriving in foreground...")
         
-        // Get sound setting from notification userInfo
-        let soundSetting = notification.request.content.userInfo["soundSetting"] as? String ?? currentSoundSetting
-        
-        // Notify to pause speech recognizer and play sound manually
+        // Notify to pause speech recognizer
         await MainActor.run {
             onNotificationWillPresent?()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.playNotificationSound(soundSetting: soundSetting)
-            }
         }
         
-        return [.banner, .badge, .list] // Remove .sound since we play manually in foreground
-    }
-    
-    @MainActor
-    private func playNotificationSound(soundSetting: String) {
-        let soundOption = NotificationSoundOption.from(soundSetting)
-        
-        guard soundOption != .silent else {
-            print("🔔 Sound is set to silent, skipping")
-            onNotificationSoundComplete?()
-            return
-        }
-        
-        print("🔔 Playing sound: \(soundOption.displayName) (duration: \(soundOption.duration)s)")
-        
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try session.setActive(true)
-        } catch {
-            print("🔔 Audio session error: \(error)")
-        }
-        
-        AudioServicesPlayAlertSound(SystemSoundID(soundOption.systemSoundID))
-        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
-        
-        let delay = soundOption.duration + 0.3
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            print("🔔 Sound complete, resuming mic")
+        // Resume mic after sound plays (default sound is ~1 second)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             self.onNotificationSoundComplete?()
         }
+        
+        // Let iOS play the default sound
+        return [.banner, .badge, .list, .sound]
     }
     
     func requestPermission() async {
@@ -106,7 +72,7 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         print("🔔 Action tapped:", response.actionIdentifier)
     }
     
-    func schedule(reminder: ReminderItem, soundSetting: String = "default") async {
+    func schedule(reminder: ReminderItem) async {
         let center = UNUserNotificationCenter.current()
         let notificationID = "\(reminder.id.uuidString)-alert"
 
@@ -117,26 +83,11 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         let content = UNMutableNotificationContent()
         content.title = "Reminder"
         content.body = reminder.title
-        content.userInfo = [
-            "reminderID": reminder.id.uuidString,
-            "soundSetting": soundSetting
-        ]
+        content.sound = .default
+        content.userInfo = ["reminderID": reminder.id.uuidString]
         content.categoryIdentifier = reminderCategoryIdentifier
         
-        // Set notification sound based on setting
-        let soundOption = NotificationSoundOption.from(soundSetting)
-        if soundOption == .silent {
-            content.sound = nil
-        } else if let soundFileName = soundOption.notificationSoundFile,
-                  Bundle.main.url(forResource: soundFileName, withExtension: nil) != nil {
-            // Use bundled sound file if available
-            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundFileName))
-        } else {
-            // Fall back to default system sound
-            content.sound = .default
-        }
-        
-        // For important reminders, use interruptionLevel to ensure delivery
+        // Ensure delivery even in Focus modes
         if #available(iOS 15.0, *) {
             content.interruptionLevel = .timeSensitive
         }
@@ -147,6 +98,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         let req = UNNotificationRequest(identifier: notificationID, content: content, trigger: trigger)
         try? await center.add(req)
         
-        print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt) with sound: \(soundOption.displayName)")
+        print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt)")
     }
 }
