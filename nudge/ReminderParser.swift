@@ -6,11 +6,11 @@ enum ParseResult {
 }
 
 final class ReminderParser {
-    func parse(_ text: String, defaultDateOnlyMinutes: Int) -> ParseResult {
+    func parse(_ text: String) -> ParseResult {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return .needsWhen(title: "", raw: text) }
 
-        let due = parseDueDate(cleaned, defaultDateOnlyMinutes: defaultDateOnlyMinutes)
+        let due = parseDueDate(cleaned)
         let title = stripSchedulingPhrases(from: cleaned)
 
         if due == nil {
@@ -26,10 +26,11 @@ final class ReminderParser {
         ))
     }
 
-    private func parseDueDate(_ s: String, defaultDateOnlyMinutes: Int) -> Date? {
+    private func parseDueDate(_ s: String) -> Date? {
         let lower = normalizeNumberWords(s)
         let now = Date()
         var baseDate = now
+        var hasDay = false
 
         // Relative: "in 30 minutes" / "in 2 hours" / "in 1 day"
         do {
@@ -56,10 +57,13 @@ final class ReminderParser {
         // Day keywords
         if lower.contains("tomorrow") {
             baseDate = Calendar.current.date(byAdding: .day, value: 1, to: baseDate) ?? baseDate
+            hasDay = true
         } else if lower.contains("today") {
             baseDate = now
+            hasDay = true
         } else if let nextWeekday = parseNextWeekday(from: lower) {
             baseDate = nextWeekday
+            hasDay = true
         }
 
         // Time-of-day words: morning/afternoon/evening
@@ -73,7 +77,7 @@ final class ReminderParser {
             return setTime(on: baseDate, hour: 19, minute: 0)
         }
 
-        // “at 7”, “at 7 pm”, “at 7:30 am”
+        // "at 7", "at 7 pm", "at 7:30 am"
         do {
             let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
             let re = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
@@ -94,7 +98,7 @@ final class ReminderParser {
                 }
 
                 // If they said "at 3" with no day and that time already passed today -> tomorrow
-                if !lower.contains("tomorrow") && !lower.contains("today") && !lower.contains("next") && !containsWeekday(lower) {
+                if !hasDay {
                     if let candidateToday = setTime(on: now, hour: hour, minute: minute), candidateToday <= now {
                         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
                         return setTime(on: tomorrow, hour: hour, minute: minute)
@@ -106,15 +110,11 @@ final class ReminderParser {
             }
         } catch { /* ignore */ }
 
-        // If they gave a day word but no time -> default time
-        if lower.contains("tomorrow") || lower.contains("today") || lower.contains("next") || containsWeekday(lower) {
-            let h = defaultDateOnlyMinutes / 60
-            let m = defaultDateOnlyMinutes % 60
-            return setTime(on: baseDate, hour: h, minute: m)
-        }
-
+        // If they gave a day word but no time -> return nil (require time)
+        // User must specify a time
         return nil
     }
+    
     private func parseNextWeekday(from lower: String) -> Date? {
         // supports: "next monday", "next tuesday", etc.
         guard lower.contains("next") else { return nil }
@@ -160,6 +160,13 @@ final class ReminderParser {
         var t = s
         let patterns = [
             #"(?i)\btomorrow\b"#,
+            #"(?i)\btoday\b"#,
+            #"(?i)\btonight\b"#,
+            #"(?i)\bmorning\b"#,
+            #"(?i)\bafternoon\b"#,
+            #"(?i)\bevening\b"#,
+            #"(?i)\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b"#,
+            #"(?i)\bin\s+\d+\s*(minute|minutes|hour|hours|day|days)\b"#,
             #"(?i)\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#
         ]
         for p in patterns { t = t.replacingOccurrences(of: p, with: "", options: .regularExpression) }

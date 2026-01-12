@@ -19,21 +19,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Defaults") {
-                DatePicker(
-                    "Date-only default time",
-                    selection: Binding(
-                        get: { dateFromMinutes(settings.defaultDateOnlyMinutes) },
-                        set: { settings.defaultDateOnlyMinutes = minutesFromMidnight($0) }
-                    ),
-                    displayedComponents: .hourAndMinute
-                )
-
-                Text("If you don't specify a time, we'll automatically set the reminder for \(formattedTime(from: settings.defaultDateOnlyMinutes)).")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Writing style") {
                 Picker("Reminder text", selection: $settings.writingStyle) {
                     Text("Sentence Case").tag("sentence")
@@ -61,14 +46,5 @@ struct SettingsView: View {
         let h = m / 60
         let min = m % 60
         return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: Date())!
-    }
-
-    private func formattedTime(from minutes: Int) -> String {
-        let h = minutes / 60
-        let m = minutes % 60
-        let date = Calendar.current.date(bySettingHour: h, minute: m, second: 0, of: Date())!
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }

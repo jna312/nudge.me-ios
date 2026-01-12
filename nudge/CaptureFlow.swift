@@ -6,7 +6,6 @@ enum CaptureStep: Equatable {
     case idle                     // ready to listen
     case gotTask(title: String)   // heard a task but no time yet
     case gotWhen(title: String, dueAt: Date) // have task + due time
-    case askAlert(title: String, dueAt: Date)
 }
 
 @MainActor
@@ -38,7 +37,7 @@ final class CaptureFlow: ObservableObject {
 
         case .idle:
             // Try to parse task + time in one shot (e.g. "Call dentist tomorrow at 3pm")
-            let result = parser.parse(t, defaultDateOnlyMinutes: settings.defaultDateOnlyMinutes)
+            let result = parser.parse(t)
 
             switch result {
             case .complete(let draft):
@@ -47,46 +46,32 @@ final class CaptureFlow: ObservableObject {
                     await saveReminder(
                         title: draft.title,
                         dueAt: due,
-                        wantsAlert: true,  // Always enable alert when full context given
+                        wantsAlert: true,
                         settings: settings,
                         modelContext: modelContext
                     )
                 } else {
                     // Only got task, need time
                     step = .gotTask(title: draft.title)
-                    prompt = "When should I remind you? (Try: \"tomorrow at 3 PM\")"
+                    prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
                 }
 
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
-                prompt = "When should I remind you? (Try: \"tomorrow at 3 PM\")"
+                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
             }
 
         case .gotTask(let title):
             // User is providing the time separately
-            guard let due = parseDueDate(from: t, defaultDateOnlyMinutes: settings.defaultDateOnlyMinutes) else {
-                prompt = "Sorry — I didn't catch the time. Try: \"tomorrow at 3 PM\""
+            guard let due = parseDueDate(from: t) else {
+                prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
                 return
             }
-            // Save immediately with alert (no confirmation needed)
+            // Save immediately with alert
             await saveReminder(
                 title: title,
                 dueAt: due,
                 wantsAlert: true,
-                settings: settings,
-                modelContext: modelContext
-            )
-
-        case .askAlert(let title, let dueAt):
-            // Legacy flow - still support yes/no if we somehow get here
-            guard let wantsAlert = parseYesNo(t) else {
-                prompt = "Please say yes or no."
-                return
-            }
-            await saveReminder(
-                title: title,
-                dueAt: dueAt,
-                wantsAlert: wantsAlert,
                 settings: settings,
                 modelContext: modelContext
             )
@@ -132,19 +117,45 @@ final class CaptureFlow: ObservableObject {
 
     // MARK: - Simple parsing helpers
 
-    private func parseYesNo(_ s: String) -> Bool? {
-        let x = s.lowercased()
-        if x.contains("yes") || x == "yeah" || x == "yep" || x == "sure" { return true }
-        if x.contains("no") || x == "nope" || x == "nah" { return false }
-        return nil
-    }
-
-    private func parseDueDate(from s: String, defaultDateOnlyMinutes: Int) -> Date? {
+    private func parseDueDate(from s: String) -> Date? {
         let lower = normalizeNumberWords(s)
-        var base = Date()
+        let now = Date()
+        var base = now
+
+        // Relative: "in X minutes/hours"
+        do {
+            let pattern = #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours)"#
+            let re = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            let range = NSRange(lower.startIndex..., in: lower)
+            if let m = re.firstMatch(in: lower, range: range),
+               let nRange = Range(m.range(at: 1), in: lower),
+               let uRange = Range(m.range(at: 2), in: lower),
+               let n = Int(lower[nRange]) {
+
+                let unit = String(lower[uRange])
+                let seconds: TimeInterval
+                switch unit {
+                case "minute", "minutes": seconds = TimeInterval(n * 60)
+                case "hour", "hours":     seconds = TimeInterval(n * 3600)
+                default:                  seconds = TimeInterval(n * 60)
+                }
+                return now.addingTimeInterval(seconds)
+            }
+        } catch { /* ignore */ }
 
         if lower.contains("tomorrow") {
             base = Calendar.current.date(byAdding: .day, value: 1, to: base) ?? base
+        }
+
+        // Time words
+        if lower.contains("morning") {
+            return setTime(on: base, hour: 9, minute: 0)
+        }
+        if lower.contains("afternoon") {
+            return setTime(on: base, hour: 15, minute: 0)
+        }
+        if lower.contains("evening") || lower.contains("tonight") {
+            return setTime(on: base, hour: 19, minute: 0)
         }
 
         // "at 7", "at 7 pm", "at 7:30 am"
@@ -168,13 +179,7 @@ final class CaptureFlow: ObservableObject {
             return setTime(on: base, hour: hour, minute: minute)
         }
 
-        // if "tomorrow" but no time, use default
-        if lower.contains("tomorrow") {
-            let h = defaultDateOnlyMinutes / 60
-            let m = defaultDateOnlyMinutes % 60
-            return setTime(on: base, hour: h, minute: m)
-        }
-
+        // No time found
         return nil
     }
 
@@ -183,13 +188,6 @@ final class CaptureFlow: ObservableObject {
         comps.hour = hour
         comps.minute = minute
         return Calendar.current.date(from: comps)
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f.string(from: date)
     }
 
     private func normalizeNumberWords(_ text: String) -> String {
