@@ -7,18 +7,7 @@ final class ReminderItem {
         case open
         case completed
     }
-    enum RepeatRule: String, Codable, CaseIterable {
-        case none
-        case daily
-        case weekly
-        case weekdays
-    }
     
-    var repeatRuleRaw: String
-    var repeatRule: RepeatRule {
-        get { RepeatRule(rawValue: repeatRuleRaw) ?? .none }
-        set { repeatRuleRaw = newValue.rawValue }
-    }
     var id: UUID
     var title: String
     var createdAt: Date
@@ -29,8 +18,7 @@ final class ReminderItem {
     // Optional dates referenced by the app
     var dueAt: Date?
     var completedAt: Date?
-    var alert1At: Date?
-    var alert2At: Date?
+    var alertAt: Date?
 
     // Computed convenience for working with enum type
     var status: Status {
@@ -45,9 +33,7 @@ final class ReminderItem {
         status: Status = .open,
         dueAt: Date? = nil,
         completedAt: Date? = nil,
-        alert1At: Date? = nil,
-        alert2At: Date? = nil,
-        repeatRule: RepeatRule = .none
+        alertAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -55,8 +41,6 @@ final class ReminderItem {
         self.statusRaw = status.rawValue
         self.dueAt = dueAt
         self.completedAt = completedAt
-        self.alert1At = alert1At
-        self.alert2At = alert2At
-        self.repeatRuleRaw = repeatRule.rawValue
+        self.alertAt = alertAt
     }
 }

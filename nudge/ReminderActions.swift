@@ -25,8 +25,7 @@ enum ReminderActions {
 
         let newDue = Date().addingTimeInterval(TimeInterval(minutes * 60))
         item.dueAt = newDue
-        item.alert1At = newDue
-        item.alert2At = nil
+        item.alertAt = newDue
 
         try? context.save()
         await NotificationsManager.shared.schedule(reminder: item)

@@ -29,12 +29,11 @@ struct RootView: View {
             }
             .tabItem { Label("Speak", systemImage: "mic.fill") }
 
-            // Today
+            // Reminders
             NavigationStack {
-                TodayView()
-                    .navigationTitle("Today")
+                RemindersView()
             }
-            .tabItem { Label("Today", systemImage: "checklist") }
+            .tabItem { Label("Reminders", systemImage: "list.bullet.circle") }
         }
     }
 }
