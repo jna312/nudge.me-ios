@@ -171,3 +171,43 @@ enum NotificationSoundOption: String, CaseIterable, Identifiable {
         return NotificationSoundOption(rawValue: rawValue) ?? .default
     }
 }
+
+extension NotificationSoundOption {
+    /// Filename for bundled notification sound (add .caf files to bundle)
+    /// When locked, iOS can only play sounds bundled with the app
+    var notificationSoundFile: String? {
+        switch self {
+        case .silent: return nil
+        case .default: return nil // Uses system default
+        case .triTone: return "tri-tone.caf"
+        case .alert: return "alert.caf"
+        case .chime: return "chime.caf"
+        case .glass: return "glass.caf"
+        case .horn: return "horn.caf"
+        case .bell: return "bell.caf"
+        case .electronic: return "electronic.caf"
+        case .anticipate: return "anticipate.caf"
+        case .bloom: return "bloom.caf"
+        case .calypso: return "calypso.caf"
+        case .chooChoo: return "choo-choo.caf"
+        case .descent: return "descent.caf"
+        case .ding: return "ding.caf"
+        case .fanfare: return "fanfare.caf"
+        case .ladder: return "ladder.caf"
+        case .minuet: return "minuet.caf"
+        case .newsFlash: return "news-flash.caf"
+        case .noir: return "noir.caf"
+        case .sherwood: return "sherwood.caf"
+        case .spell: return "spell.caf"
+        case .suspense: return "suspense.caf"
+        case .telegraph: return "telegraph.caf"
+        case .tiptoes: return "tiptoes.caf"
+        case .typewriters: return "typewriters.caf"
+        case .update: return "update.caf"
+        case .tweet: return "tweet.caf"
+        case .popcorn: return "popcorn.caf"
+        case .shake: return "shake.caf"
+        case .jingle: return "jingle.caf"
+        }
+    }
+}
