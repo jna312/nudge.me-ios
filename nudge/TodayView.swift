@@ -17,6 +17,20 @@ struct RemindersView: View {
     ) private var completedReminders: [ReminderItem]
     
     @State private var isCompletedExpanded = false
+    @State private var editingReminder: ReminderItem?
+    @State private var showCelebration = false
+    
+    private let emptyStateMessages = [
+        ("No Reminders", "checkmark.circle", "You're all caught up!"),
+        ("All Clear", "sparkles", "Nothing to do. Enjoy the moment!"),
+        ("Free Time", "sun.max", "Your schedule is wide open."),
+        ("Well Done", "hand.thumbsup", "You've completed everything!"),
+        ("Peace of Mind", "leaf", "No pending tasks. Relax.")
+    ]
+    
+    private var randomEmptyState: (String, String, String) {
+        emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
+    }
 
     private var groupedReminders: [(String, [ReminderItem])] {
         let calendar = Calendar.current
@@ -65,18 +79,37 @@ struct RemindersView: View {
     var body: some View {
         Group {
             if openReminders.isEmpty && completedReminders.isEmpty {
+                let state = randomEmptyState
                 ContentUnavailableView(
-                    "No Reminders",
-                    systemImage: "checkmark.circle",
-                    description: Text("You're all caught up!")
+                    state.0,
+                    systemImage: state.1,
+                    description: Text(state.2)
                 )
             } else {
                 List {
-                    // Open reminders grouped by date
                     ForEach(groupedReminders, id: \.0) { section, items in
                         Section(section) {
                             ForEach(items) { reminder in
                                 ReminderRow(reminder: reminder)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        editingReminder = reminder
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                        Button {
+                                            snoozeReminder(reminder, minutes: 10)
+                                        } label: {
+                                            Label("10 min", systemImage: "clock.arrow.circlepath")
+                                        }
+                                        .tint(.orange)
+                                        
+                                        Button {
+                                            snoozeReminder(reminder, minutes: 60)
+                                        } label: {
+                                            Label("1 hour", systemImage: "clock")
+                                        }
+                                        .tint(.blue)
+                                    }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
                                             deleteReminder(reminder)
@@ -88,10 +121,9 @@ struct RemindersView: View {
                         }
                     }
                     
-                    // Completed reminders (collapsible)
                     if !completedReminders.isEmpty {
                         Section {
-                            DisclosureGroup(isExpanded: $isCompletedExpanded) {
+                            DisclosureGroup(isExpanded: \$isCompletedExpanded) {
                                 ForEach(completedReminders) { reminder in
                                     CompletedReminderRow(reminder: reminder)
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -119,16 +151,50 @@ struct RemindersView: View {
             }
         }
         .navigationTitle("Reminders")
+        .sheet(item: \$editingReminder) { reminder in
+            EditReminderView(reminder: reminder)
+        }
+        .overlay {
+            if showCelebration {
+                CelebrationView()
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            withAnimation {
+                                showCelebration = false
+                            }
+                        }
+                    }
+            }
+        }
+        .onChange(of: openReminders.count) { oldCount, newCount in
+            if oldCount > 0 && newCount == 0 && completedReminders.count > 0 {
+                withAnimation(.spring()) {
+                    showCelebration = true
+                }
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+            }
+        }
     }
     
     private func deleteReminder(_ reminder: ReminderItem) {
         withAnimation {
-            // Cancel any pending notification
             let notificationID = "\(reminder.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
-            
-            // Delete from database
             modelContext.delete(reminder)
+        }
+    }
+    
+    private func snoozeReminder(_ reminder: ReminderItem, minutes: Int) {
+        let newDue = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        reminder.dueAt = newDue
+        reminder.alertAt = newDue
+        
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        Task {
+            await NotificationsManager.shared.schedule(reminder: reminder)
         }
     }
 }
@@ -137,9 +203,20 @@ struct ReminderRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var reminder: ReminderItem
     
-    var isOverdue: Bool {
-        guard let due = reminder.dueAt else { return false }
-        return due < Calendar.current.startOfDay(for: Date())
+    private var urgencyColor: Color {
+        guard let due = reminder.dueAt else { return .secondary }
+        let calendar = Calendar.current
+        let now = Date()
+        
+        if due < calendar.startOfDay(for: now) {
+            return .red
+        } else if calendar.isDateInToday(due) {
+            return .orange
+        } else if calendar.isDateInTomorrow(due) {
+            return .blue
+        } else {
+            return .secondary
+        }
     }
 
     var body: some View {
@@ -149,14 +226,13 @@ struct ReminderRow: View {
             } label: {
                 Image(systemName: "circle")
                     .font(.title2)
-                    .foregroundStyle(isOverdue ? .red : .secondary)
+                    .foregroundStyle(urgencyColor)
             }
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(reminder.title)
                     .font(.body)
-                    .foregroundStyle(isOverdue ? .primary : .primary)
 
                 if let due = reminder.dueAt {
                     HStack(spacing: 4) {
@@ -165,23 +241,34 @@ struct ReminderRow: View {
                         Text(formatDueDate(due))
                             .font(.caption)
                     }
-                    .foregroundStyle(isOverdue ? .red : .secondary)
+                    .foregroundStyle(urgencyColor)
                 }
             }
             
             Spacer()
+            
+            Circle()
+                .fill(urgencyColor)
+                .frame(width: 8, height: 8)
         }
         .padding(.vertical, 4)
     }
     
     private func markComplete() {
-        withAnimation {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             reminder.status = .completed
             reminder.completedAt = .now
             
-            // Cancel any pending notification
             let notificationID = "\(reminder.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            let successGenerator = UINotificationFeedbackGenerator()
+            successGenerator.notificationOccurred(.success)
         }
     }
 
@@ -243,11 +330,13 @@ struct CompletedReminderRow: View {
     }
     
     private func markIncomplete() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        
         withAnimation {
             reminder.status = .open
             reminder.completedAt = nil
             
-            // Re-schedule notification if there's a future alert time
             if let alertAt = reminder.alertAt, alertAt > Date() {
                 Task {
                     await NotificationsManager.shared.schedule(reminder: reminder)
@@ -274,4 +363,161 @@ struct CompletedReminderRow: View {
             return formatter.string(from: date)
         }
     }
+}
+
+struct EditReminderView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var reminder: ReminderItem
+    
+    @State private var title: String = ""
+    @State private var dueDate: Date = Date()
+    @State private var hasAlert: Bool = true
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Reminder") {
+                    TextField("Title", text: \$title)
+                }
+                
+                Section("When") {
+                    DatePicker("Due Date", selection: \$dueDate, displayedComponents: [.date, .hourAndMinute])
+                }
+                
+                Section("Alert") {
+                    Toggle("Alert at due time", isOn: \$hasAlert)
+                }
+                
+                Section {
+                    Button("Snooze 1 Hour") {
+                        dueDate = Date().addingTimeInterval(3600)
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
+                    
+                    Button("Snooze to Tomorrow 9 AM") {
+                        let calendar = Calendar.current
+                        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
+                        dueDate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
+                }
+            }
+            .navigationTitle("Edit Reminder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveChanges()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                title = reminder.title
+                dueDate = reminder.dueAt ?? Date()
+                hasAlert = reminder.alertAt != nil
+            }
+        }
+    }
+    
+    private func saveChanges() {
+        reminder.title = title
+        reminder.dueAt = dueDate
+        reminder.alertAt = hasAlert ? dueDate : nil
+        
+        Task {
+            if hasAlert {
+                await NotificationsManager.shared.schedule(reminder: reminder)
+            } else {
+                let notificationID = "\(reminder.id.uuidString)-alert"
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+            }
+        }
+        
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
+}
+
+struct CelebrationView: View {
+    @State private var particles: [ConfettiParticle] = []
+    
+    let emojis = ["🎉", "✨", "⭐️", "🌟", "🎊", "💫"]
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            ForEach(particles) { particle in
+                Text(particle.emoji)
+                    .font(.system(size: particle.size))
+                    .position(particle.position)
+                    .opacity(particle.opacity)
+            }
+            
+            VStack(spacing: 16) {
+                Text("🎉")
+                    .font(.system(size: 60))
+                
+                Text("All Done!")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                
+                Text("You've completed all your reminders!")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .padding(32)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+        }
+        .onAppear {
+            startConfetti()
+        }
+    }
+    
+    private func startConfetti() {
+        let screenWidth = UIScreen.main.bounds.width
+        let screenHeight = UIScreen.main.bounds.height
+        
+        for i in 0..<30 {
+            let particle = ConfettiParticle(
+                id: i,
+                emoji: emojis.randomElement()!,
+                position: CGPoint(
+                    x: CGFloat.random(in: 0...screenWidth),
+                    y: -50
+                ),
+                size: CGFloat.random(in: 20...40),
+                opacity: 1.0
+            )
+            particles.append(particle)
+            
+            withAnimation(.easeIn(duration: Double.random(in: 1.5...2.5)).delay(Double(i) * 0.05)) {
+                if let index = particles.firstIndex(where: { \$0.id == i }) {
+                    particles[index].position.y = screenHeight + 50
+                    particles[index].position.x += CGFloat.random(in: -100...100)
+                    particles[index].opacity = 0
+                }
+            }
+        }
+    }
+}
+
+struct ConfettiParticle: Identifiable {
+    let id: Int
+    let emoji: String
+    var position: CGPoint
+    let size: CGFloat
+    var opacity: Double
 }

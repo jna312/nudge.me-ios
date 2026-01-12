@@ -81,6 +81,9 @@ final class SpeechTranscriber: ObservableObject {
         task?.cancel()
         request = nil
         task = nil
+        
+        // Deactivate audio session to allow other audio (like system sounds) to play
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
 
