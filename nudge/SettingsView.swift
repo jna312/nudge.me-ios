@@ -3,12 +3,22 @@ import EventKit
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @StateObject private var tipsManager = TipsManager.shared
     @State private var calendarAccessGranted = false
     @State private var showingImportAlert = false
     @State private var importedCount = 0
 
     var body: some View {
         Form {
+            // Help & Instructions - At the top for visibility
+            Section {
+                NavigationLink {
+                    HelpView()
+                } label: {
+                    Label("How to Use Nudge", systemImage: "questionmark.circle")
+                }
+            }
+            
             Section("Daily closeout") {
                 DatePicker(
                     "Closeout time",
@@ -18,14 +28,14 @@ struct SettingsView: View {
                     ),
                     displayedComponents: .hourAndMinute
                 )
-                Text("Only triggers if you created reminders for that day.")
+                Text("Review uncompleted reminders at end of day.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             
             Section {
                 Toggle("\"Hey Nudge\" Wake Word", isOn: $settings.wakeWordEnabled)
-                Text("Say \"Hey Nudge\" to start recording hands-free. Requires microphone access in background.")
+                Text("Say \"Hey Nudge\" to start recording hands-free.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } header: {
@@ -46,13 +56,9 @@ struct SettingsView: View {
                     }
                 
                 if settings.calendarSyncEnabled {
-                    Text("Reminders will be added to a \"Nudge Reminders\" calendar.")
+                    Text("Reminders sync to \"Nudge Reminders\" calendar.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    
-                    Button("Import from Calendar") {
-                        importFromCalendar()
-                    }
                 }
             } header: {
                 Text("Calendar Integration")
@@ -74,8 +80,12 @@ struct SettingsView: View {
                 Text("Shortcuts")
             }
 
-            Section("Debug") {
-                Button("Reset onboarding") {
+            Section("Advanced") {
+                Button("Reset Tips") {
+                    tipsManager.resetAllTips()
+                }
+                
+                Button("Reset Onboarding") {
                     settings.didCompleteOnboarding = false
                 }
                 .foregroundStyle(.red)
@@ -89,14 +99,6 @@ struct SettingsView: View {
             if settings.calendarSyncEnabled {
                 calendarAccessGranted = await CalendarSync.shared.requestAccess()
             }
-        }
-    }
-    
-    private func importFromCalendar() {
-        Task {
-            // Need to get model context - this should be passed in or use environment
-            // For now, show info about how to import
-            showingImportAlert = true
         }
     }
 
@@ -116,36 +118,27 @@ struct SiriShortcutsInfoView: View {
     var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Add a Nudge", systemImage: "plus.circle")
-                        .font(.headline)
-                    Text("\"Hey Siri, add a nudge in Nudge\"")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
+                ShortcutRow(
+                    title: "Add a Nudge",
+                    phrase: "\"Hey Siri, add a nudge in Nudge\"",
+                    icon: "plus.circle"
+                )
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("List My Nudges", systemImage: "list.bullet")
-                        .font(.headline)
-                    Text("\"Hey Siri, show my nudges in Nudge\"")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
+                ShortcutRow(
+                    title: "List My Nudges",
+                    phrase: "\"Hey Siri, show my nudges\"",
+                    icon: "list.bullet"
+                )
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Quick Nudge", systemImage: "clock")
-                        .font(.headline)
-                    Text("\"Hey Siri, quick nudge in Nudge\"")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 4)
+                ShortcutRow(
+                    title: "Quick Nudge",
+                    phrase: "\"Hey Siri, quick nudge\" (1 hour)",
+                    icon: "clock"
+                )
             } header: {
                 Text("Available Shortcuts")
             } footer: {
-                Text("You can also find these in the Shortcuts app under \"Nudge\".")
+                Text("Find these in the Shortcuts app under \"Nudge\".")
             }
             
             Section {
@@ -156,5 +149,30 @@ struct SiriShortcutsInfoView: View {
         }
         .navigationTitle("Siri Shortcuts")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ShortcutRow: View {
+    let title: String
+    let phrase: String
+    let icon: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.blue)
+                .frame(width: 28)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(phrase)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
