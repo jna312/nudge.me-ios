@@ -438,19 +438,9 @@ struct EditReminderView: View {
                         }
                     }
                     
-                    if earlyAlertMinutes > 0 {
-                        HStack {
-                            Image(systemName: "bell.badge")
-                                .foregroundStyle(.orange)
-                            Text("You'll get a \"Coming Up\" notification \(formatEarlyAlert(earlyAlertMinutes)) before the main alert.")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Text("Tip: Say \"with a 15 minute warning\" when creating reminders to add an early alert automatically.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Get a \"Coming Up\" notification before your main alert.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 
                 Section {

@@ -417,7 +417,7 @@ final class CaptureFlow: ObservableObject {
                 if let m = re.firstMatch(in: lower, range: range),
                    let hrR = Range(m.range(at: 1), in: lower) {
                     
-                    var hour = Int(lower[hrR]) ?? 0
+                    let hour = Int(lower[hrR]) ?? 0
                     var minute = 0
                     
                     if let minR = Range(m.range(at: 2), in: lower) {
@@ -567,3 +567,4 @@ final class CaptureFlow: ObservableObject {
         }
     }
 }
+

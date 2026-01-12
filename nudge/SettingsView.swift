@@ -122,15 +122,9 @@ struct SettingsView: View {
                     Text("1 hour before").tag(60)
                 }
                 
-                if settings.defaultEarlyAlertMinutes > 0 {
-                    Text("New reminders will automatically get a \(formatEarlyAlert(settings.defaultEarlyAlertMinutes)) heads up notification.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("You can also say \"with a 15 minute warning\" when creating a reminder, or add one later by tapping the reminder to edit.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Get a \"Coming Up\" notification before your main reminder alert.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("Early Alerts")
             }
