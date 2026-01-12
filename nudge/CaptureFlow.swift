@@ -222,6 +222,7 @@ final class CaptureFlow: ObservableObject {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
             let timeStr = formatTime(duplicate.dueAt ?? dueAt)
             prompt = "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway?"
+            needsFollowUp = true
             return
         }
         
