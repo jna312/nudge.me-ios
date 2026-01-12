@@ -12,89 +12,123 @@ struct ContentView: View {
     
     @State private var isHoldingMic = false
     @State private var showQuickAdd = false
+    @State private var lastSavedReminder: ReminderItem?
+    @State private var showUndoBanner = false
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            // Prompt text
-            Text(flow.prompt)
-                .font(.title2)
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            
-            // Transcript display
-            if !transcriber.transcript.isEmpty || isHoldingMic {
-                Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
-                    .font(.title3)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding()
-                    .background(.thinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .padding(.horizontal)
-            }
-            
-            Spacer()
-            
-            // Hold-to-record mic button
-            VStack(spacing: 12) {
-                ZStack {
-                    // Pulsing background when recording
-                    if isHoldingMic {
-                        Circle()
-                            .fill(Color.red.opacity(0.2))
-                            .frame(width: 120, height: 120)
-                            .scaleEffect(isHoldingMic ? 1.2 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
-                    }
-                    
-                    // Main mic button
-                    Circle()
-                        .fill(isHoldingMic ? Color.red : Color.accentColor)
-                        .frame(width: 88, height: 88)
-                        .shadow(color: isHoldingMic ? .red.opacity(0.4) : .accentColor.opacity(0.3), radius: 8, y: 4)
-                        .overlay {
-                            Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
-                                .font(.system(size: 36))
-                                .foregroundStyle(.white)
-                                .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
-                        }
-                        .scaleEffect(isHoldingMic ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.3), value: isHoldingMic)
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if !isHoldingMic && !isSettingsOpen {
-                                startRecording()
-                            }
-                        }
-                        .onEnded { _ in
-                            if isHoldingMic {
-                                stopRecording()
-                            }
-                        }
-                )
-                .disabled(isSettingsOpen)
-                .opacity(isSettingsOpen ? 0.5 : 1.0)
+        ZStack {
+            VStack(spacing: 32) {
+                Spacer()
                 
-                Text(isHoldingMic ? "Release to save" : "Hold to speak")
-                    .font(.caption)
+                // Prompt text
+                Text(flow.prompt)
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                
+                // Transcript display
+                if !transcriber.transcript.isEmpty || isHoldingMic {
+                    Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
+                        .font(.title3)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                // Hold-to-record mic button
+                VStack(spacing: 12) {
+                    ZStack {
+                        // Pulsing background when recording
+                        if isHoldingMic {
+                            Circle()
+                                .fill(Color.red.opacity(0.2))
+                                .frame(width: 120, height: 120)
+                                .scaleEffect(isHoldingMic ? 1.2 : 1.0)
+                                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
+                        }
+                        
+                        // Main mic button
+                        Circle()
+                            .fill(isHoldingMic ? Color.red : Color.accentColor)
+                            .frame(width: 88, height: 88)
+                            .shadow(color: isHoldingMic ? .red.opacity(0.4) : .accentColor.opacity(0.3), radius: 8, y: 4)
+                            .overlay {
+                                Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(.white)
+                                    .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
+                            }
+                            .scaleEffect(isHoldingMic ? 1.1 : 1.0)
+                            .animation(.spring(response: 0.3), value: isHoldingMic)
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                if !isHoldingMic && !isSettingsOpen {
+                                    startRecording()
+                                }
+                            }
+                            .onEnded { _ in
+                                if isHoldingMic {
+                                    stopRecording()
+                                }
+                            }
+                    )
+                    .disabled(isSettingsOpen)
+                    .opacity(isSettingsOpen ? 0.5 : 1.0)
+                    
+                    Text(isHoldingMic ? "Release to save" : "Hold to speak")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                // Keyboard button
+                Button {
+                    showQuickAdd = true
+                } label: {
+                    Label("Type instead", systemImage: "keyboard")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isSettingsOpen)
+                .padding(.bottom, 32)
             }
             
-            // Keyboard button
-            Button {
-                showQuickAdd = true
-            } label: {
-                Label("Type instead", systemImage: "keyboard")
-                    .font(.subheadline)
+            // Undo banner overlay
+            if showUndoBanner, let reminder = lastSavedReminder {
+                VStack {
+                    Spacer()
+                    
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        
+                        Text("Saved: \(reminder.title)")
+                            .lineLimit(1)
+                        
+                        Spacer()
+                        
+                        Button("Undo") {
+                            undoLastReminder()
+                        }
+                        .fontWeight(.semibold)
+                    }
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(radius: 8)
+                    .padding(.horizontal)
+                    .padding(.bottom, 120) // Above the mic button
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                .animation(.spring(response: 0.3), value: showUndoBanner)
             }
-            .buttonStyle(.bordered)
-            .disabled(isSettingsOpen)
-            .padding(.bottom, 32)
         }
         .sheet(isPresented: $showQuickAdd) {
             QuickAddView(settings: settings, modelContext: modelContext) {}
@@ -127,14 +161,35 @@ struct ContentView: View {
                 isHoldingMic = false
             }
         }
+        .onChange(of: flow.lastSavedReminder) { _, newReminder in
+            if let reminder = newReminder {
+                lastSavedReminder = reminder
+                withAnimation {
+                    showUndoBanner = true
+                }
+                
+                // Auto-hide after 5 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                    withAnimation {
+                        if lastSavedReminder?.id == reminder.id {
+                            showUndoBanner = false
+                        }
+                    }
+                }
+            }
+        }
     }
     
     private func startRecording() {
+        // Hide undo banner when starting new recording
+        withAnimation {
+            showUndoBanner = false
+        }
+        
         isHoldingMic = true
         transcriber.transcript = ""
         try? transcriber.start()
         
-        // Haptic feedback
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
     }
@@ -145,11 +200,9 @@ struct ContentView: View {
         
         let finalText = transcriber.transcript
         
-        // Haptic feedback
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
         
-        // Process if we got something
         guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             transcriber.transcript = ""
             return
@@ -158,10 +211,31 @@ struct ContentView: View {
         Task {
             await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
             
-            // Clear transcript after processing
             try? await Task.sleep(nanoseconds: 500_000_000)
             transcriber.transcript = ""
         }
+    }
+    
+    private func undoLastReminder() {
+        guard let reminder = lastSavedReminder else { return }
+        
+        // Cancel notification
+        let notificationID = "\(reminder.id.uuidString)-alert"
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+        
+        // Delete reminder
+        modelContext.delete(reminder)
+        
+        // Haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.warning)
+        
+        // Hide banner and reset
+        withAnimation {
+            showUndoBanner = false
+        }
+        lastSavedReminder = nil
+        flow.prompt = "Undone. Try again?"
     }
 }
 

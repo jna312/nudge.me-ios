@@ -14,6 +14,7 @@ final class CaptureFlow: ObservableObject {
     @Published var prompt: String = "What do you want me to remind you about?"
     @Published var lastHeard: String = ""
     @Published var step: CaptureStep = .idle
+    @Published var lastSavedReminder: ReminderItem?
 
     private let parser = ReminderParser()
     
@@ -115,6 +116,7 @@ final class CaptureFlow: ObservableObject {
         )
 
         modelContext.insert(item)
+        lastSavedReminder = item
         try? modelContext.save()
 
         // Schedule alert notification
