@@ -73,9 +73,9 @@ struct ContentView: View {
                         
                         // Main mic button
                         Circle()
-                            .fill(isHoldingMic ? Color.red : Color.accentColor)
+                            .fill(isHoldingMic ? Color.red : Color.blue)
                             .frame(width: 88, height: 88)
-                            .shadow(color: isHoldingMic ? .red.opacity(0.4) : .accentColor.opacity(0.3), radius: 8, y: 4)
+                            .shadow(color: isHoldingMic ? .red.opacity(0.4) : .blue.opacity(0.3), radius: 8, y: 4)
                             .overlay {
                                 Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
                                     .font(.system(size: 36))
