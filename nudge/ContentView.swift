@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var lastSavedReminder: ReminderItem?
     @State private var showUndoBanner = false
     @State private var wakeWordTriggered = false
+    @State private var isAutoListening = false
+    @State private var silenceTimer: Timer?
 
     var body: some View {
         ZStack {

@@ -27,6 +27,7 @@ final class CaptureFlow: ObservableObject {
     @Published var lastSavedReminder: ReminderItem?
     @Published var conflictWarning: String? = nil
     @Published var timeSuggestions: [Date] = []
+    @Published var needsFollowUp: Bool = false  // Signals ContentView to auto-listen
 
     private let parser = ReminderParser()
     
@@ -36,6 +37,7 @@ final class CaptureFlow: ObservableObject {
         lastHeard = ""
         conflictWarning = nil
         timeSuggestions = []
+        needsFollowUp = false
     }
 
     func handleTranscript(
@@ -95,11 +97,13 @@ final class CaptureFlow: ObservableObject {
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
                 timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
+                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")
+                needsFollowUp = true
                 
             case .needsTime(let title, let baseDate, let periodHint):
                 step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
                 prompt = promptForTime(periodHint: periodHint)
+                needsFollowUp = true
             }
 
         case .gotTask(let title):
@@ -121,6 +125,7 @@ final class CaptureFlow: ObservableObject {
             case .needsTime(_, let baseDate, let periodHint):
                 step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
                 prompt = promptForTime(periodHint: periodHint)
+                needsFollowUp = true
                 
             case .needsWhen:
                 prompt = "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\""
