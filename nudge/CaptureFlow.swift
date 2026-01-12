@@ -38,6 +38,7 @@ final class CaptureFlow: ObservableObject {
         conflictWarning = nil
         timeSuggestions = []
         needsFollowUp = false
+        pendingEarlyAlertMinutes = nil
     }
 
     func handleTranscript(
@@ -85,6 +86,7 @@ final class CaptureFlow: ObservableObject {
                     await prepareToSave(
                         title: draft.title,
                         dueAt: due,
+                        earlyAlertMinutes: draft.earlyAlertMinutes,
                         settings: settings,
                         modelContext: modelContext
                     )
@@ -115,6 +117,7 @@ final class CaptureFlow: ObservableObject {
                     await prepareToSave(
                         title: title,
                         dueAt: due,
+                        earlyAlertMinutes: draft.earlyAlertMinutes,
                         settings: settings,
                         modelContext: modelContext
                     )
@@ -146,7 +149,7 @@ final class CaptureFlow: ObservableObject {
             
         case .confirmDuplicate(let title, let dueAt, _):
             if parseYes(t) {
-                await saveReminder(title: title, dueAt: dueAt, settings: settings, modelContext: modelContext)
+                await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
                 prompt = "Okay, cancelled. What else?"
@@ -178,12 +181,18 @@ final class CaptureFlow: ObservableObject {
     
     // MARK: - Prepare to Save (with duplicate & conflict checking)
     
+    private var pendingEarlyAlertMinutes: Int? = nil
+    
     private func prepareToSave(
         title: String,
         dueAt: Date,
+        earlyAlertMinutes: Int? = nil,
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
+        // Store for potential use after duplicate confirmation
+        pendingEarlyAlertMinutes = earlyAlertMinutes
+        
         // Check for duplicates
         if let duplicate = DuplicateDetector.findDuplicate(title: title, dueAt: dueAt, in: modelContext) {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
@@ -199,7 +208,7 @@ final class CaptureFlow: ObservableObject {
         }
         
         // Save the reminder
-        await saveReminder(title: title, dueAt: dueAt, settings: settings, modelContext: modelContext)
+        await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: earlyAlertMinutes, settings: settings, modelContext: modelContext)
     }
     
     // MARK: - Command Handlers
@@ -392,15 +401,20 @@ final class CaptureFlow: ObservableObject {
     private func saveReminder(
         title: String,
         dueAt: Date,
+        earlyAlertMinutes: Int? = nil,
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
         let styledTitle = applyWritingStyle(title, style: settings.writingStyle)
+        
+        // Use parsed early alert, or fall back to default setting
+        let finalEarlyAlert = earlyAlertMinutes ?? (settings.defaultEarlyAlertMinutes > 0 ? settings.defaultEarlyAlertMinutes : nil)
 
         let item = ReminderItem(
             title: styledTitle,
             dueAt: dueAt,
-            alertAt: dueAt
+            alertAt: dueAt,
+            earlyAlertMinutes: finalEarlyAlert
         )
 
         modelContext.insert(item)
@@ -412,12 +426,26 @@ final class CaptureFlow: ObservableObject {
 
         reset()
         
+        // Build confirmation message
+        var confirmMsg = "Saved!"
+        if let early = finalEarlyAlert {
+            confirmMsg += " (with \(formatEarlyAlert(early)) warning)"
+        }
         if let warning = conflictWarning {
-            prompt = "Saved! \(warning)"
+            confirmMsg += " \(warning)"
             conflictWarning = nil
         } else {
-            prompt = "Saved! What's next?"
+            confirmMsg += " What's next?"
         }
+        prompt = confirmMsg
+    }
+    
+    private func formatEarlyAlert(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour" : "\(hours) hour"
+        }
+        return "\(minutes) min"
     }
 
     private func normalizeNumberWords(_ text: String) -> String {

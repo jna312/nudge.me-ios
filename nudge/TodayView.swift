@@ -392,6 +392,16 @@ struct EditReminderView: View {
     @State private var title: String = ""
     @State private var dueDate: Date = Date()
     @State private var hasAlert: Bool = true
+    @State private var earlyAlertMinutes: Int = 0  // 0 = none
+    
+    private let earlyAlertOptions: [(String, Int)] = [
+        ("None", 0),
+        ("5 minutes before", 5),
+        ("15 minutes before", 15),
+        ("30 minutes before", 30),
+        ("1 hour before", 60),
+        ("2 hours before", 120)
+    ]
     
     var body: some View {
         NavigationStack {
@@ -404,8 +414,24 @@ struct EditReminderView: View {
                     DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
                 }
                 
-                Section("Alert") {
+                Section("Alerts") {
                     Toggle("Alert at due time", isOn: $hasAlert)
+                    
+                    Picker("Early warning", selection: $earlyAlertMinutes) {
+                        ForEach(earlyAlertOptions, id: \.1) { option in
+                            Text(option.0).tag(option.1)
+                        }
+                    }
+                    
+                    if earlyAlertMinutes > 0 {
+                        HStack {
+                            Image(systemName: "bell.badge")
+                                .foregroundStyle(.orange)
+                            Text("You'll get a heads up \(formatEarlyAlert(earlyAlertMinutes)) before")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 
                 Section {
@@ -444,21 +470,30 @@ struct EditReminderView: View {
                 title = reminder.title
                 dueDate = reminder.dueAt ?? Date()
                 hasAlert = reminder.alertAt != nil
+                earlyAlertMinutes = reminder.earlyAlertMinutes ?? 0
             }
         }
+    }
+    
+    private func formatEarlyAlert(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        }
+        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
     }
     
     private func saveChanges() {
         reminder.title = title
         reminder.dueAt = dueDate
         reminder.alertAt = hasAlert ? dueDate : nil
+        reminder.earlyAlertMinutes = earlyAlertMinutes > 0 ? earlyAlertMinutes : nil
         
         Task {
-            if hasAlert {
+            if hasAlert || earlyAlertMinutes > 0 {
                 await NotificationsManager.shared.schedule(reminder: reminder)
             } else {
-                let notificationID = "\(reminder.id.uuidString)-alert"
-                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+                NotificationsManager.shared.removeNotifications(for: reminder)
             }
             
             if calendarSyncEnabled {

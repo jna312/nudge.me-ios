@@ -5,5 +5,5 @@ struct ReminderDraft {
     var title: String
     var dueAt: Date?
     var wantsAlert1: Bool
-    var alert2OffsetSeconds: TimeInterval?
+    var earlyAlertMinutes: Int?  // Minutes before due time for early alert
 }

@@ -113,6 +113,24 @@ struct SettingsView: View {
                 Text("Calendar Integration")
             }
 
+            Section {
+                Picker("Default early warning", selection: $settings.defaultEarlyAlertMinutes) {
+                    Text("None").tag(0)
+                    Text("5 minutes before").tag(5)
+                    Text("15 minutes before").tag(15)
+                    Text("30 minutes before").tag(30)
+                    Text("1 hour before").tag(60)
+                }
+                
+                if settings.defaultEarlyAlertMinutes > 0 {
+                    Text("New reminders will automatically include a \(formatEarlyAlert(settings.defaultEarlyAlertMinutes)) heads up.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Early Alerts")
+            }
+            
             Section("Writing style") {
                 Picker("Reminder text", selection: $settings.writingStyle) {
                     Text("Sentence Case").tag("sentence")
@@ -157,6 +175,14 @@ struct SettingsView: View {
         let h = m / 60
         let min = m % 60
         return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: Date())!
+    }
+    
+    private func formatEarlyAlert(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour" : "\(hours) hour"
+        }
+        return "\(minutes) minute"
     }
 }
 

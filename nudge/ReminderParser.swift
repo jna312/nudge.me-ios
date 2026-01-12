@@ -15,6 +15,9 @@ final class ReminderParser {
         let title = stripSchedulingPhrases(from: cleaned)
         let finalTitle = title.isEmpty ? cleaned : title
         
+        // Check for early alert phrases like "with a 15 minute warning"
+        let earlyAlertMinutes = parseEarlyAlertPhrase(lower)
+        
         // Check for relative time first (these are complete)
         if let relativeDate = parseRelativeTime(lower) {
             return .complete(ReminderDraft(
@@ -22,7 +25,7 @@ final class ReminderParser {
                 title: finalTitle,
                 dueAt: relativeDate,
                 wantsAlert1: true,
-                alert2OffsetSeconds: nil
+                earlyAlertMinutes: earlyAlertMinutes
             ))
         }
         
@@ -43,7 +46,7 @@ final class ReminderParser {
                     title: finalTitle,
                     dueAt: due,
                     wantsAlert1: true,
-                    alert2OffsetSeconds: nil
+                    earlyAlertMinutes: earlyAlertMinutes
                 ))
             }
         }
@@ -55,6 +58,56 @@ final class ReminderParser {
         
         // No time info at all
         return .needsWhen(title: finalTitle, raw: cleaned)
+    }
+    
+    // MARK: - Early Alert Parsing
+    
+    private func parseEarlyAlertPhrase(_ lower: String) -> Int? {
+        // Match patterns like:
+        // "with a 15 minute warning"
+        // "with 15 minute warning"
+        // "with an early alert"
+        // "warn me 30 minutes before"
+        // "alert me 1 hour before"
+        // "remind me 15 minutes early"
+        
+        let patterns: [(String, Int?)] = [
+            // "with a X minute warning" / "with X minute warning"
+            (#"with\s+(?:a\s+)?(\d+)\s*(?:minute|min)\s*(?:warning|alert|heads?\s*up)"#, nil),
+            // "with a X hour warning"
+            (#"with\s+(?:a\s+)?(\d+)\s*hour\s*(?:warning|alert|heads?\s*up)"#, nil),
+            // "warn/alert/remind me X minutes before/early"
+            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*(?:minute|min)s?\s*(?:before|early|earlier)"#, nil),
+            // "warn/alert/remind me X hour(s) before/early"
+            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*hours?\s*(?:before|early|earlier)"#, nil),
+            // "with an early alert" / "with early warning" (default 15 min)
+            (#"with\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#, 15),
+        ]
+        
+        for (pattern, defaultMinutes) in patterns {
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let range = NSRange(lower.startIndex..., in: lower)
+            
+            if let match = re.firstMatch(in: lower, range: range) {
+                // If pattern has a capture group (number), extract it
+                if match.numberOfRanges > 1, let numRange = Range(match.range(at: 1), in: lower) {
+                    let numStr = String(lower[numRange])
+                    if let num = Int(numStr) {
+                        // Check if it's hours
+                        if pattern.contains("hour") {
+                            return num * 60  // Convert hours to minutes
+                        }
+                        return num
+                    }
+                }
+                // No capture group or couldn't parse - use default
+                if let defaultMinutes = defaultMinutes {
+                    return defaultMinutes
+                }
+            }
+        }
+        
+        return nil
     }
     
     // MARK: - Relative time ("in X minutes/hours")
@@ -201,7 +254,11 @@ final class ReminderParser {
             #"(?i)\bnight\b"#,
             #"(?i)\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b"#,
             #"(?i)\bin\s+\d+\s*(minute|minutes|hour|hours|day|days)\b"#,
-            #"(?i)\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#
+            #"(?i)\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#,
+            // Early alert phrases
+            #"(?i)\bwith\s+(?:a\s+)?\d+\s*(?:minute|min|hour)s?\s*(?:warning|alert|heads?\s*up)"#,
+            #"(?i)\bwith\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#,
+            #"(?i)\b(?:warn|alert|remind)\s+me\s+\d+\s*(?:minute|min|hour)s?\s*(?:before|early|earlier)"#,
         ]
         for p in patterns { t = t.replacingOccurrences(of: p, with: "", options: .regularExpression) }
         return t.trimmingCharacters(in: .whitespacesAndNewlines)

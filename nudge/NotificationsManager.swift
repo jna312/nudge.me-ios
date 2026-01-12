@@ -101,31 +101,70 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     
     func schedule(reminder: ReminderItem) async {
         let center = UNUserNotificationCenter.current()
-        let notificationID = "\(reminder.id.uuidString)-alert"
+        let mainNotificationID = "\(reminder.id.uuidString)-alert"
+        let earlyNotificationID = "\(reminder.id.uuidString)-early-alert"
 
-        center.removePendingNotificationRequests(withIdentifiers: [notificationID])
+        // Remove any existing notifications for this reminder
+        center.removePendingNotificationRequests(withIdentifiers: [mainNotificationID, earlyNotificationID])
 
         guard let alertAt = reminder.alertAt else { return }
 
-        let content = UNMutableNotificationContent()
-        content.title = "Reminder"
-        content.body = reminder.title
-        content.sound = .default
-        content.userInfo = ["reminderID": reminder.id.uuidString]
-        content.categoryIdentifier = reminderCategoryIdentifier
+        // Schedule main alert at due time
+        let mainContent = UNMutableNotificationContent()
+        mainContent.title = "Reminder"
+        mainContent.body = reminder.title
+        mainContent.sound = .default
+        mainContent.userInfo = ["reminderID": reminder.id.uuidString]
+        mainContent.categoryIdentifier = reminderCategoryIdentifier
         
-        // Ensure delivery even in Focus modes
         if #available(iOS 15.0, *) {
-            content.interruptionLevel = .timeSensitive
+            mainContent.interruptionLevel = .timeSensitive
         }
 
-        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertAt)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-
-        let req = UNNotificationRequest(identifier: notificationID, content: content, trigger: trigger)
-        try? await center.add(req)
+        let mainComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertAt)
+        let mainTrigger = UNCalendarNotificationTrigger(dateMatching: mainComps, repeats: false)
+        let mainReq = UNNotificationRequest(identifier: mainNotificationID, content: mainContent, trigger: mainTrigger)
+        try? await center.add(mainReq)
         
-        print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt)")
+        print("🔔 Scheduled main notification for '\(reminder.title)' at \(alertAt)")
+        
+        // Schedule early alert if configured
+        if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
+            let earlyContent = UNMutableNotificationContent()
+            earlyContent.title = "Coming Up"
+            earlyContent.body = "\(reminder.title) in \(formatMinutes(reminder.earlyAlertMinutes ?? 15))"
+            earlyContent.sound = .default
+            earlyContent.userInfo = ["reminderID": reminder.id.uuidString, "isEarlyAlert": true]
+            earlyContent.categoryIdentifier = reminderCategoryIdentifier
+            
+            if #available(iOS 15.0, *) {
+                earlyContent.interruptionLevel = .timeSensitive
+            }
+            
+            let earlyComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: earlyAlertAt)
+            let earlyTrigger = UNCalendarNotificationTrigger(dateMatching: earlyComps, repeats: false)
+            let earlyReq = UNNotificationRequest(identifier: earlyNotificationID, content: earlyContent, trigger: earlyTrigger)
+            try? await center.add(earlyReq)
+            
+            print("🔔 Scheduled early notification for '\(reminder.title)' at \(earlyAlertAt)")
+        }
+    }
+    
+    private func formatMinutes(_ minutes: Int) -> String {
+        if minutes >= 60 {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        }
+        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+}
+
+extension NotificationsManager {
+    func removeNotifications(for reminder: ReminderItem) {
+        let mainID = "\(reminder.id.uuidString)-alert"
+        let earlyID = "\(reminder.id.uuidString)-early-alert"
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [mainID, earlyID])
+        print("🔔 Removed all notifications for \(reminder.title)")
     }
 }
 

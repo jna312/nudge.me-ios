@@ -17,4 +17,7 @@ final class AppSettings: ObservableObject {
     
     // Security
     @AppStorage("biometricLockEnabled") var biometricLockEnabled: Bool = false
+    
+    // Default early alert (minutes before due time, 0 = none)
+    @AppStorage("defaultEarlyAlertMinutes") var defaultEarlyAlertMinutes: Int = 0
 }

@@ -19,11 +19,20 @@ final class ReminderItem {
     var dueAt: Date?
     var completedAt: Date?
     var alertAt: Date?
+    
+    // Early alert (minutes before due time, nil = no early alert)
+    var earlyAlertMinutes: Int?
 
     // Computed convenience for working with enum type
     var status: Status {
         get { Status(rawValue: statusRaw) ?? .open }
         set { statusRaw = newValue.rawValue }
+    }
+    
+    // Computed early alert date
+    var earlyAlertAt: Date? {
+        guard let due = dueAt, let minutes = earlyAlertMinutes, minutes > 0 else { return nil }
+        return due.addingTimeInterval(-Double(minutes * 60))
     }
 
     init(
@@ -33,7 +42,8 @@ final class ReminderItem {
         status: Status = .open,
         dueAt: Date? = nil,
         completedAt: Date? = nil,
-        alertAt: Date? = nil
+        alertAt: Date? = nil,
+        earlyAlertMinutes: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -42,5 +52,6 @@ final class ReminderItem {
         self.dueAt = dueAt
         self.completedAt = completedAt
         self.alertAt = alertAt
+        self.earlyAlertMinutes = earlyAlertMinutes
     }
 }
