@@ -10,6 +10,7 @@ enum CaptureStep: Equatable {
     case confirmDuplicate(title: String, dueAt: Date, existingReminder: ReminderItem)
     case confirmEdit(reminder: ReminderItem, newTime: Date?, newTitle: String?)
     case confirmCancel(reminders: [ReminderItem])
+    case calendarConflict(title: String, dueAt: Date, conflictingEvents: [String])
 }
 
 // Make ReminderItem Equatable for CaptureStep
@@ -176,6 +177,28 @@ final class CaptureFlow: ObservableObject {
             } else {
                 prompt = "Say \"yes\" to delete or \"no\" to keep."
             }
+            
+        case .calendarConflict(let title, let dueAt, let conflictingEvents):
+            if parseMerge(t) {
+                // Merge: combine reminder with calendar event names
+                let mergedTitle = "\(title) + \(conflictingEvents.joined(separator: " & "))"
+                await saveReminder(title: mergedTitle, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
+            } else if parseChangeTime(t) {
+                // Change time: go back to gotTask step
+                step = .gotTask(title: title)
+                timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
+                prompt = "What time works better?"
+                needsFollowUp = true
+            } else if parseSaveAnyway(t) || parseYes(t) {
+                // Save anyway: proceed with original reminder
+                await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
+            } else if parseNo(t) || parseCancel(t) {
+                reset()
+                prompt = "Okay, cancelled. What else?"
+            } else {
+                prompt = "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\"."
+                needsFollowUp = true
+            }
         }
     }
     
@@ -204,7 +227,12 @@ final class CaptureFlow: ObservableObject {
         // Check for calendar conflicts
         let conflicts = await CalendarConflictDetector.checkConflicts(at: dueAt)
         if !conflicts.isEmpty {
-            conflictWarning = "Heads up: You have \"\(conflicts.first!)\" around that time."
+            // Show conflict resolution options
+            step = .calendarConflict(title: title, dueAt: dueAt, conflictingEvents: conflicts)
+            let eventNames = conflicts.joined(separator: ", ")
+            prompt = "You have \"\(eventNames)\" at that time. Say \"merge\" to combine, \"change time\", or \"save anyway\"."
+            needsFollowUp = true
+            return
         }
         
         // Save the reminder
@@ -380,6 +408,32 @@ final class CaptureFlow: ObservableObject {
     private func parseNo(_ s: String) -> Bool {
         let lower = s.lowercased()
         return lower.contains("no") || lower == "nope" || lower == "nah" || lower == "cancel"
+    }
+    
+    private func parseMerge(_ s: String) -> Bool {
+        let lower = s.lowercased()
+        return lower.contains("merge") || lower.contains("combine") || lower.contains("join")
+    }
+    
+    private func parseChangeTime(_ s: String) -> Bool {
+        let lower = s.lowercased()
+        return lower.contains("change time") || lower.contains("different time") || 
+               lower.contains("another time") || lower.contains("reschedule") ||
+               lower.contains("new time") || lower.contains("pick another")
+    }
+    
+    private func parseSaveAnyway(_ s: String) -> Bool {
+        let lower = s.lowercased()
+        return lower.contains("save anyway") || lower.contains("save it anyway") ||
+               lower.contains("keep it") || lower.contains("save both") ||
+               lower.contains("that's fine") || lower.contains("it's fine")
+    }
+    
+    private func parseCancel(_ s: String) -> Bool {
+        let lower = s.lowercased()
+        return lower.contains("cancel") || lower.contains("delete") || 
+               lower.contains("nevermind") || lower.contains("never mind") ||
+               lower.contains("forget it")
     }
     
     private func formatTime(_ date: Date) -> String {
