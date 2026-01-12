@@ -226,8 +226,11 @@ struct ContentView: View {
             handleWakeWordTriggered()
         }
         .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
+            print("🎤 needsFollowUp changed to: \(needsFollowUp), isHoldingMic: \(isHoldingMic), isSettingsOpen: \(isSettingsOpen)")
             if needsFollowUp && !isHoldingMic && !isSettingsOpen {
+                print("🎤 Starting auto-listen in 0.5s...")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    print("🎤 Calling startAutoListening()")
                     startAutoListening()
                 }
             }
@@ -307,7 +310,12 @@ struct ContentView: View {
     // MARK: - Auto-listening for follow-up questions
     
     private func startAutoListening() {
-        guard !isHoldingMic && !isSettingsOpen else { return }
+        print("🎤 startAutoListening called, isHoldingMic: \(isHoldingMic), isSettingsOpen: \(isSettingsOpen)")
+        guard !isHoldingMic && !isSettingsOpen else {
+            print("🎤 startAutoListening guard failed - skipping")
+            return
+        }
+        print("🎤 Auto-listen starting!")
         
         withAnimation {
             showUndoBanner = false
