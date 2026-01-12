@@ -3,7 +3,7 @@ import UserNotifications
 import AudioToolbox
 import AVFoundation
 
-final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
+final class NotificationsManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationsManager()
 
     let reminderCategoryIdentifier = "REMINDER_CATEGORY"
@@ -12,6 +12,9 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     // Callback to pause/resume speech recognizer
     var onNotificationWillPresent: (() -> Void)?
     var onNotificationSoundComplete: (() -> Void)?
+    
+    // Published property to trigger navigation to Reminders tab
+    @Published var shouldNavigateToReminders = false
     
     override init() {
         super.init()
@@ -69,7 +72,30 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
-        print("🔔 Action tapped:", response.actionIdentifier)
+        let actionID = response.actionIdentifier
+        let categoryID = response.notification.request.content.categoryIdentifier
+        
+        print("🔔 Action tapped:", actionID, "Category:", categoryID)
+        
+        // Handle closeout notification tap (either the notification itself or the Open button)
+        if categoryID == closeoutCategoryIdentifier {
+            if actionID == UNNotificationDefaultActionIdentifier || actionID == "CLOSEOUT_OPEN_APP" {
+                // User tapped on the notification or the "Open" button
+                await MainActor.run {
+                    shouldNavigateToReminders = true
+                }
+            }
+        }
+        
+        // Handle reminder notification tap
+        if categoryID == reminderCategoryIdentifier {
+            if actionID == UNNotificationDefaultActionIdentifier {
+                // User tapped on a reminder notification - go to reminders
+                await MainActor.run {
+                    shouldNavigateToReminders = true
+                }
+            }
+        }
     }
     
     func schedule(reminder: ReminderItem) async {
