@@ -57,7 +57,7 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
             print("🔔 Sound command sent")
             
             // Resume speech after sound completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 self.onNotificationSoundComplete?()
             }
         } catch {
