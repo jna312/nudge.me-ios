@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Black background with iOS-style rounded corners -->
+  <rect width="1024" height="1024" rx="224" ry="224" fill="#000000"/>
+  
+  <!-- White cursive lowercase 'n' -->
+  <text 
+    x="512" 
+    y="620" 
+    font-family="Snell Roundhand, Brush Script MT, cursive" 
+    font-size="580" 
+    font-weight="bold"
+    fill="#FFFFFF" 
+    text-anchor="middle"
+    dominant-baseline="middle">n</text>
+</svg>
