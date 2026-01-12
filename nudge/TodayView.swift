@@ -4,6 +4,7 @@ import UserNotifications
 
 struct RemindersView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var settings: AppSettings
     
     @Query(
         filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
@@ -98,7 +99,7 @@ struct RemindersView: View {
                         ForEach(groupedReminders) { section in
                             Section(section.title) {
                                 ForEach(section.items) { reminder in
-                                    ReminderRow(reminder: reminder)
+                                    ReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
                                             editingReminder = reminder
@@ -133,7 +134,7 @@ struct RemindersView: View {
                             Section {
                                 DisclosureGroup(isExpanded: $isCompletedExpanded) {
                                     ForEach(completedReminders) { reminder in
-                                        CompletedReminderRow(reminder: reminder)
+                                        CompletedReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
                                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                                 Button(role: .destructive) {
                                                     deleteReminder(reminder)
@@ -161,7 +162,7 @@ struct RemindersView: View {
             .navigationTitle("Reminders")
         }
         .sheet(item: $editingReminder) { reminder in
-            EditReminderView(reminder: reminder)
+            EditReminderView(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
         }
         .onAppear {
             if emptyState == nil {
@@ -172,6 +173,12 @@ struct RemindersView: View {
     }
     
     private func deleteReminder(_ reminder: ReminderItem) {
+        if settings.calendarSyncEnabled {
+            Task {
+                await CalendarSync.shared.removeFromCalendar(reminder: reminder)
+            }
+        }
+        
         withAnimation {
             let notificationID = "\(reminder.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
@@ -189,6 +196,10 @@ struct RemindersView: View {
         
         Task {
             await NotificationsManager.shared.schedule(reminder: reminder)
+            
+            if settings.calendarSyncEnabled {
+                await CalendarSync.shared.syncToCalendar(reminder: reminder)
+            }
         }
     }
 }
@@ -196,6 +207,7 @@ struct RemindersView: View {
 struct ReminderRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var reminder: ReminderItem
+    let calendarSyncEnabled: Bool
     
     private var urgencyColor: Color {
         guard let due = reminder.dueAt else { return .secondary }
@@ -260,6 +272,12 @@ struct ReminderRow: View {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
         }
         
+        if calendarSyncEnabled {
+            Task {
+                await CalendarSync.shared.removeFromCalendar(reminder: reminder)
+            }
+        }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             let successGenerator = UINotificationFeedbackGenerator()
             successGenerator.notificationOccurred(.success)
@@ -293,6 +311,7 @@ struct ReminderRow: View {
 
 struct CompletedReminderRow: View {
     @Bindable var reminder: ReminderItem
+    let calendarSyncEnabled: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -337,6 +356,12 @@ struct CompletedReminderRow: View {
                 }
             }
         }
+        
+        if calendarSyncEnabled {
+            Task {
+                await CalendarSync.shared.syncToCalendar(reminder: reminder)
+            }
+        }
     }
     
     private func formatCompletedDate(_ date: Date) -> String {
@@ -362,6 +387,7 @@ struct CompletedReminderRow: View {
 struct EditReminderView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var reminder: ReminderItem
+    let calendarSyncEnabled: Bool
     
     @State private var title: String = ""
     @State private var dueDate: Date = Date()
@@ -434,6 +460,10 @@ struct EditReminderView: View {
                 let notificationID = "\(reminder.id.uuidString)-alert"
                 UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
             }
+            
+            if calendarSyncEnabled {
+                await CalendarSync.shared.syncToCalendar(reminder: reminder)
+            }
         }
         
         let generator = UINotificationFeedbackGenerator()
@@ -446,6 +476,7 @@ struct EmptyStateModel {
     let systemImage: String
     let description: String
 }
+
 struct EmptyStateView: View {
     let state: EmptyStateModel
 
@@ -457,4 +488,3 @@ struct EmptyStateView: View {
         )
     }
 }
-

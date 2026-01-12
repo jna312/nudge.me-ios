@@ -40,6 +40,7 @@ struct RootView: View {
             // Reminders
             NavigationStack {
                 RemindersView()
+                    .environmentObject(settings)
             }
             .tabItem { Label("Reminders", systemImage: "list.bullet.circle") }
             .tag(AppTab.reminders)
