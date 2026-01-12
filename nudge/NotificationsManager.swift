@@ -165,9 +165,11 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     /// Get notification sound for the selected ringtone
     private func getNotificationSound(for ringtone: String) -> UNNotificationSound {
         // Sound files are in bundle root
-        if Bundle.main.url(forResource: ringtone, withExtension: "caf") != nil {
+        if let url = Bundle.main.url(forResource: ringtone, withExtension: "caf") {
+            print("🔔 Using custom sound: \(ringtone).caf at \(url)")
             return UNNotificationSound(named: UNNotificationSoundName("\(ringtone).caf"))
         }
+        print("🔔 Sound file not found for \(ringtone), using default")
         return .default
     }
 }
