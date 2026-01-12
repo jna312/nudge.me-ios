@@ -128,5 +128,46 @@ enum NotificationSoundOption: String, CaseIterable, Identifiable {
         case .silent: return 0
         }
     }
+    
+    /// Duration in seconds for each sound (approximate)
+    var duration: Double {
+        switch self {
+        case .default: return 1.0
+        case .triTone: return 1.2
+        case .alert: return 0.8
+        case .chime: return 1.5
+        case .glass: return 0.8
+        case .horn: return 1.0
+        case .bell: return 2.0
+        case .electronic: return 1.5
+        case .anticipate: return 2.0
+        case .bloom: return 2.5
+        case .calypso: return 1.5
+        case .chooChoo: return 2.0
+        case .descent: return 1.5
+        case .ding: return 0.5
+        case .fanfare: return 3.0
+        case .ladder: return 2.0
+        case .minuet: return 3.0
+        case .newsFlash: return 2.0
+        case .noir: return 2.5
+        case .sherwood: return 3.0
+        case .spell: return 2.0
+        case .suspense: return 2.5
+        case .telegraph: return 2.0
+        case .tiptoes: return 2.0
+        case .typewriters: return 2.5
+        case .update: return 1.5
+        case .tweet: return 1.2
+        case .popcorn: return 2.0
+        case .shake: return 1.0
+        case .jingle: return 2.5
+        case .silent: return 0.0
+        }
+    }
+    
+    /// Get option from raw string value
+    static func from(_ rawValue: String) -> NotificationSoundOption {
+        return NotificationSoundOption(rawValue: rawValue) ?? .default
+    }
 }
-

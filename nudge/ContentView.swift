@@ -74,6 +74,7 @@ struct ContentView: View {
             await transcriber.requestPermissions()
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
+            NotificationsManager.shared.currentSoundSetting = settings.notificationSound
             
             // Set up notification sound callbacks
             NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
@@ -97,6 +98,9 @@ struct ContentView: View {
                 try? transcriber.start()
                 _ = await UNUserNotificationCenter.current().notificationSettings()
             }
+        }
+        .onChange(of: settings.notificationSound) { _, newSound in
+            NotificationsManager.shared.currentSoundSetting = newSound
         }
         .onChange(of: isSettingsOpen) { _, isOpen in
             if isOpen {

@@ -13,7 +13,8 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     var onNotificationWillPresent: (() -> Void)?
     var onNotificationSoundComplete: (() -> Void)?
     
-    private var audioPlayer: AVAudioPlayer?
+    // Current sound setting (set by ContentView)
+    var currentSoundSetting: String = "default"
     
     override init() {
         super.init()
@@ -39,29 +40,36 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     
     @MainActor
     private func playNotificationSound() {
-        print("🔔 Attempting to play sound...")
+        let soundOption = NotificationSoundOption.from(currentSoundSetting)
+        
+        // Skip if silent
+        guard soundOption != .silent else {
+            print("🔔 Sound is set to silent, skipping")
+            onNotificationSoundComplete?()
+            return
+        }
+        
+        print("🔔 Playing sound: \(soundOption.displayName) (duration: \(soundOption.duration)s)")
         
         do {
             // Configure for playback
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
-            print("🔔 Audio session set to playback")
-            
-            // Play system alert sound
-            AudioServicesPlayAlertSound(SystemSoundID(1007))
-            
-            // Also vibrate
-            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
-            
-            print("🔔 Sound command sent")
-            
-            // Resume speech after sound completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                self.onNotificationSoundComplete?()
-            }
         } catch {
-            print("🔔 Audio error: \(error)")
+            print("🔔 Audio session error: \(error)")
+        }
+        
+        // Play the selected system sound
+        AudioServicesPlayAlertSound(SystemSoundID(soundOption.systemSoundID))
+        
+        // Also vibrate
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+        
+        // Resume speech after sound completes (use sound's duration + small buffer)
+        let delay = soundOption.duration + 0.3
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            print("🔔 Sound complete, resuming mic")
             self.onNotificationSoundComplete?()
         }
     }
