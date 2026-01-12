@@ -1,5 +1,7 @@
 import Foundation
 import UserNotifications
+import AudioToolbox
+import AVFoundation
 
 final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationsManager()
@@ -15,8 +17,26 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        // Manually play sound since the microphone audio session may block system sounds
+        playNotificationSound()
+        
         // Show notifications even when app is in foreground
         return [.banner, .sound, .badge, .list]
+    }
+    
+    /// Play notification sound manually - works even when microphone is active
+    private func playNotificationSound() {
+        // Temporarily configure audio session to allow playback alongside recording
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
+            try session.setActive(true)
+        } catch {
+            print("🔔 Audio session error: \(error)")
+        }
+        
+        // Play the system notification sound
+        AudioServicesPlayAlertSound(SystemSoundID(1007)) // Default notification sound
     }
     
     func requestPermission() async {
@@ -72,7 +92,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
-        // We’ll wire these after DailyCloseoutManager exists
         print("🔔 Action tapped:", response.actionIdentifier)
     }
     
@@ -105,10 +124,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         if setting == "silent" {
             return nil
         }
-        // Use default system notification sound
-        // Note: Custom sounds require bundled audio files (.caf, .wav, .aiff)
         return .default
     }
-
 }
-
