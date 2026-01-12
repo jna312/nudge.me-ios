@@ -97,7 +97,7 @@ final class CaptureFlow: ObservableObject {
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
                 timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")
+                prompt = "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")"
                 needsFollowUp = true
                 
             case .needsTime(let title, let baseDate, let periodHint):

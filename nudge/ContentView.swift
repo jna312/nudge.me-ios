@@ -225,6 +225,18 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .wakeWordDetected)) { _ in
             handleWakeWordTriggered()
         }
+        .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
+            if needsFollowUp && !isHoldingMic && !isSettingsOpen {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    startAutoListening()
+                }
+            }
+        }
+        .onChange(of: transcriber.transcript) { _, newValue in
+            if isAutoListening && !newValue.isEmpty {
+                resetSilenceTimer()
+            }
+        }
     }
     
     private func handleWakeWordTriggered() {
@@ -260,6 +272,9 @@ struct ContentView: View {
     }
     
     private func stopRecording() {
+        isAutoListening = false
+        silenceTimer?.invalidate()
+        silenceTimer = nil
         isHoldingMic = false
         wakeWordTriggered = false
         transcriber.stop()
@@ -289,6 +304,48 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Auto-listening for follow-up questions
+    
+    private func startAutoListening() {
+        guard !isHoldingMic && !isSettingsOpen else { return }
+        
+        withAnimation {
+            showUndoBanner = false
+        }
+        
+        wakeWordDetector.stopListening()
+        
+        isHoldingMic = true
+        isAutoListening = true
+        transcriber.transcript = ""
+        try? transcriber.start()
+        
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        
+        resetSilenceTimer()
+        
+        // Safety timeout after 8 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+            if self.isAutoListening {
+                self.stopRecording()
+            }
+        }
+    }
+    
+    private func resetSilenceTimer() {
+        silenceTimer?.invalidate()
+        
+        // Wait 1.5 seconds of silence before auto-stopping
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+            DispatchQueue.main.async {
+                if self.isAutoListening && !self.transcriber.transcript.isEmpty {
+                    self.stopRecording()
+                }
+            }
+        }
+    }
+
     private func undoLastReminder() {
         guard let reminder = lastSavedReminder else { return }
         

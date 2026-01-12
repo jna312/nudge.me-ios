@@ -103,34 +103,34 @@ struct RemindersView: View {
                                         .contentShape(Rectangle())
                                         .onTapGesture {
                                             editingReminder = reminder
-                                        // End completed section
+                                        }
                                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                             Button {
                                                 snoozeReminder(reminder, minutes: 10)
                                             } label: {
                                                 Label("10 min", systemImage: "clock.arrow.circlepath")
-                                            // End completed section
+                                            }
                                             .tint(.orange)
                                             
                                             Button {
                                                 snoozeReminder(reminder, minutes: 60)
                                             } label: {
                                                 Label("1 hour", systemImage: "clock")
-                                            // End completed section
+                                            }
                                             .tint(.blue)
-                                        // End completed section
+                                        }
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                             Button(role: .destructive) {
                                                 deleteReminder(reminder)
                                             } label: {
                                                 Label("Delete", systemImage: "trash")
-                                            // End completed section
-                                        // End completed section
-                                // End completed section
-                            // End completed section
-                        // End completed section
+                                            }
+                                        }
+                                }
+                            }
+                        }
                         
-                        // Always show completed section (even if empty)
+                        if !completedReminders.isEmpty {
                             Section {
                                 DisclosureGroup(isExpanded: $isCompletedExpanded) {
                                     ForEach(completedReminders) { reminder in
@@ -140,9 +140,9 @@ struct RemindersView: View {
                                                     deleteReminder(reminder)
                                                 } label: {
                                                     Label("Delete", systemImage: "trash")
-                                                // End completed section
-                                            // End completed section
-                                    // End completed section
+                                                }
+                                            }
+                                    }
                                 } label: {
                                     HStack {
                                         Text("Completed")
@@ -152,10 +152,10 @@ struct RemindersView: View {
                                         Text("\(completedReminders.count)")
                                             .font(.subheadline)
                                             .foregroundStyle(.secondary)
-                                    // End completed section
-                                // End completed section
-                            // End completed section
-                        // End completed section
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
