@@ -41,11 +41,17 @@ final class CaptureFlow: ObservableObject {
 
             switch result {
             case .complete(let draft):
-                // If we got a due date/time, jump straight to alert question
+                // If we got both task AND time, save immediately with alert
                 if let due = draft.dueAt {
-                    step = .askAlert(title: draft.title, dueAt: due)
-                    prompt = "Do you want an alert at \(formatTime(due))? Say yes or no."
+                    await saveReminder(
+                        title: draft.title,
+                        dueAt: due,
+                        wantsAlert: true,  // Always enable alert when full context given
+                        settings: settings,
+                        modelContext: modelContext
+                    )
                 } else {
+                    // Only got task, need time
                     step = .gotTask(title: draft.title)
                     prompt = "When should I remind you? (Try: \"tomorrow at 3 PM\")"
                 }
@@ -56,15 +62,22 @@ final class CaptureFlow: ObservableObject {
             }
 
         case .gotTask(let title):
-            // For now, only accept very simple "tomorrow at 3pm / at 7pm" patterns.
+            // User is providing the time separately
             guard let due = parseDueDate(from: t, defaultDateOnlyMinutes: settings.defaultDateOnlyMinutes) else {
                 prompt = "Sorry — I didn't catch the time. Try: \"tomorrow at 3 PM\""
                 return
             }
-            step = .askAlert(title: title, dueAt: due)
-            prompt = "Do you want an alert at \(formatTime(due))? Say yes or no."
+            // Save immediately with alert (no confirmation needed)
+            await saveReminder(
+                title: title,
+                dueAt: due,
+                wantsAlert: true,
+                settings: settings,
+                modelContext: modelContext
+            )
 
         case .askAlert(let title, let dueAt):
+            // Legacy flow - still support yes/no if we somehow get here
             guard let wantsAlert = parseYesNo(t) else {
                 prompt = "Please say yes or no."
                 return
@@ -78,7 +91,6 @@ final class CaptureFlow: ObservableObject {
             )
 
         case .gotWhen:
-            // not used yet
             reset()
         }
     }
@@ -113,10 +125,10 @@ final class CaptureFlow: ObservableObject {
 
         // Ready for next reminder
         reset()
-        prompt = "Saved. What else do you want me to remind you about?"
+        prompt = "Saved! What's next?"
     }
 
-    // MARK: - Simple parsing helpers (we’ll replace with ReminderParser next)
+    // MARK: - Simple parsing helpers
 
     private func parseYesNo(_ s: String) -> Bool? {
         let x = s.lowercased()
@@ -133,7 +145,7 @@ final class CaptureFlow: ObservableObject {
             base = Calendar.current.date(byAdding: .day, value: 1, to: base) ?? base
         }
 
-        // “at 7”, “at 7 pm”, “at 7:30 am”
+        // "at 7", "at 7 pm", "at 7:30 am"
         let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
         let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
         let range = NSRange(lower.startIndex..., in: lower)
@@ -154,7 +166,7 @@ final class CaptureFlow: ObservableObject {
             return setTime(on: base, hour: hour, minute: minute)
         }
 
-        // if “tomorrow” but no time, use default
+        // if "tomorrow" but no time, use default
         if lower.contains("tomorrow") {
             let h = defaultDateOnlyMinutes / 60
             let m = defaultDateOnlyMinutes % 60
@@ -200,4 +212,3 @@ final class CaptureFlow: ObservableObject {
         }
     }
 }
-
