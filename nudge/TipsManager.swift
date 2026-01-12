@@ -1,17 +1,39 @@
 import SwiftUI
+import Combine
 
 // MARK: - Tips Manager
 
 final class TipsManager: ObservableObject {
     static let shared = TipsManager()
     
-    @AppStorage("tip_holdToSpeak_shown") private var holdToSpeakShown = false
-    @AppStorage("tip_swipeActions_shown") private var swipeActionsShown = false
-    @AppStorage("tip_voiceCommands_shown") private var voiceCommandsShown = false
-    @AppStorage("tip_undoBanner_shown") private var undoBannerShown = false
-    @AppStorage("tip_quickAdd_shown") private var quickAddShown = false
-    
     @Published var currentTip: Tip? = nil
+    
+    private let defaults = UserDefaults.standard
+    
+    private var holdToSpeakShown: Bool {
+        get { defaults.bool(forKey: "tip_holdToSpeak_shown") }
+        set { defaults.set(newValue, forKey: "tip_holdToSpeak_shown") }
+    }
+    
+    private var swipeActionsShown: Bool {
+        get { defaults.bool(forKey: "tip_swipeActions_shown") }
+        set { defaults.set(newValue, forKey: "tip_swipeActions_shown") }
+    }
+    
+    private var voiceCommandsShown: Bool {
+        get { defaults.bool(forKey: "tip_voiceCommands_shown") }
+        set { defaults.set(newValue, forKey: "tip_voiceCommands_shown") }
+    }
+    
+    private var undoBannerShown: Bool {
+        get { defaults.bool(forKey: "tip_undoBanner_shown") }
+        set { defaults.set(newValue, forKey: "tip_undoBanner_shown") }
+    }
+    
+    private var quickAddShown: Bool {
+        get { defaults.bool(forKey: "tip_quickAdd_shown") }
+        set { defaults.set(newValue, forKey: "tip_quickAdd_shown") }
+    }
     
     enum TipID: String {
         case holdToSpeak
@@ -27,6 +49,8 @@ final class TipsManager: ObservableObject {
         let message: String
         let icon: String
     }
+    
+    private init() {}
     
     func showTipIfNeeded(_ tipID: TipID) {
         switch tipID {
@@ -150,35 +174,5 @@ struct TipOverlay: View {
             .padding()
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
-    }
-}
-
-// MARK: - View Modifier for Tips
-
-struct TipModifier: ViewModifier {
-    @ObservedObject var tipsManager = TipsManager.shared
-    let tipID: TipsManager.TipID
-    let delay: Double
-    
-    @State private var hasTriggered = false
-    
-    func body(content: Content) -> some View {
-        content
-            .onAppear {
-                guard !hasTriggered else { return }
-                hasTriggered = true
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    withAnimation(.spring(response: 0.3)) {
-                        tipsManager.showTipIfNeeded(tipID)
-                    }
-                }
-            }
-    }
-}
-
-extension View {
-    func showTip(_ tipID: TipsManager.TipID, delay: Double = 1.0) -> some View {
-        modifier(TipModifier(tipID: tipID, delay: delay))
     }
 }
