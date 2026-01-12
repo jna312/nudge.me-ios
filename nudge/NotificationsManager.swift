@@ -9,6 +9,12 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
     let reminderCategoryIdentifier = "REMINDER_CATEGORY"
     let closeoutCategoryIdentifier = "CLOSEOUT_CATEGORY"
     
+    // Callback to pause/resume speech recognizer
+    var onNotificationWillPresent: (() -> Void)?
+    var onNotificationSoundComplete: (() -> Void)?
+    
+    private var audioPlayer: AVAudioPlayer?
+    
     override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
@@ -16,37 +22,48 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        // Play sound on main thread since we're in async context
+        print("🔔 Notification arriving in foreground...")
+        
+        // Notify to pause speech recognizer
         await MainActor.run {
-            playNotificationSound()
+            onNotificationWillPresent?()
+            
+            // Small delay to let audio session release, then play sound
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.playNotificationSound()
+            }
         }
         
-        return [.banner, .sound, .badge, .list]
+        return [.banner, .badge, .list] // Remove .sound since we play manually
     }
     
-    /// Play notification sound manually - works even when microphone is active
     @MainActor
     private func playNotificationSound() {
-        print("🔔 Playing foreground notification sound...")
+        print("🔔 Attempting to play sound...")
         
-        // Configure audio session to allow playback even while recording
         do {
+            // Configure for playback
             let session = AVAudioSession.sharedInstance()
-            // Use playAndRecord with duckOthers to lower other audio and play our sound
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers, .allowBluetooth])
-            try session.setActive(true, options: [])
-            print("🔔 Audio session configured for playAndRecord")
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+            print("🔔 Audio session set to playback")
+            
+            // Play system alert sound
+            AudioServicesPlayAlertSound(SystemSoundID(1007))
+            
+            // Also vibrate
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+            
+            print("🔔 Sound command sent")
+            
+            // Resume speech after sound completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.onNotificationSoundComplete?()
+            }
         } catch {
-            print("🔔 Audio session error: \(error)")
+            print("🔔 Audio error: \(error)")
+            self.onNotificationSoundComplete?()
         }
-        
-        // Play alert sound (with vibration on supported devices)
-        AudioServicesPlayAlertSound(SystemSoundID(1007))
-        
-        // Also trigger vibration as backup feedback
-        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
-        
-        print("🔔 Sound triggered")
     }
     
     func requestPermission() async {
@@ -78,24 +95,6 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         )
 
         UNUserNotificationCenter.current().setNotificationCategories([reminderCategory, closeoutCategory])
-    }
-
-    func scheduleTestIn30Seconds() async {
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["TEST_30S"])
-
-        let content = UNMutableNotificationContent()
-        content.title = "Nudge TEST"
-        content.body = "If you see this, notifications are working."
-        content.sound = .default
-        content.categoryIdentifier = closeoutCategoryIdentifier
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 30, repeats: false)
-        let req = UNNotificationRequest(identifier: "TEST_30S", content: content, trigger: trigger)
-        try? await center.add(req)
-
-        let pending = await center.pendingNotificationRequests()
-        print("🔔 Pending requests:", pending.map { $0.identifier })
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,

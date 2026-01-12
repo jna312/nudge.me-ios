@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var transcriber = SpeechTranscriber()
     
     @State private var wasRecordingBeforeSettings = false
+    @State private var wasRecordingBeforeNotification = false
     @State private var showQuickAdd = false
 
     var body: some View {
@@ -73,6 +74,24 @@ struct ContentView: View {
             await transcriber.requestPermissions()
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
+            
+            // Set up notification sound callbacks
+            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
+                guard let transcriber = transcriber else { return }
+                wasRecordingBeforeNotification = transcriber.isRecording
+                if transcriber.isRecording {
+                    transcriber.stop()
+                    print("🎤 Paused transcriber for notification sound")
+                }
+            }
+            
+            NotificationsManager.shared.onNotificationSoundComplete = { [weak transcriber] in
+                guard let transcriber = transcriber else { return }
+                if wasRecordingBeforeNotification && !isSettingsOpen {
+                    try? transcriber.start()
+                    print("🎤 Resumed transcriber after notification")
+                }
+            }
             
             if !transcriber.isRecording && !isSettingsOpen {
                 try? transcriber.start()
