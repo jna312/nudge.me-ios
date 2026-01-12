@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Nudge checks your calendar to warn you about scheduling conflicts with your reminders.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Nudge uses the microphone to capture your voice reminders.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Nudge uses speech recognition to convert your voice into reminder text.</string>
+</dict>
+</plist>
