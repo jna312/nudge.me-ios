@@ -17,8 +17,13 @@ struct RootView: View {
             NavigationStack {
                 ContentView(isSettingsOpen: $showSettings)
                     .environmentObject(settings)
-                    .navigationTitle("Nudge")
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Text("nudge")
+                                .font(.custom("Snell Roundhand", size: 28))
+                                .fontWeight(.bold)
+                        }
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 showSettings = true
@@ -48,7 +53,6 @@ struct RootView: View {
         .onChange(of: notificationsManager.shouldNavigateToReminders) { _, shouldNavigate in
             if shouldNavigate {
                 selectedTab = .reminders
-                // Reset the flag
                 notificationsManager.shouldNavigateToReminders = false
             }
         }
