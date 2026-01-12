@@ -47,18 +47,18 @@ final class CaptureFlow: ObservableObject {
                     prompt = "Do you want an alert at \(formatTime(due))? Say yes or no."
                 } else {
                     step = .gotTask(title: draft.title)
-                    prompt = "When should I remind you? (Try: "tomorrow at 3 PM")"
+                    prompt = "When should I remind you? (Try: \"tomorrow at 3 PM\")"
                 }
 
             case .needsWhen(let title, _):
                 step = .gotTask(title: title)
-                prompt = "When should I remind you? (Try: "tomorrow at 3 PM")"
+                prompt = "When should I remind you? (Try: \"tomorrow at 3 PM\")"
             }
 
         case .gotTask(let title):
             // For now, only accept very simple "tomorrow at 3pm / at 7pm" patterns.
             guard let due = parseDueDate(from: t, defaultDateOnlyMinutes: settings.defaultDateOnlyMinutes) else {
-                prompt = "Sorry — I didn't catch the time. Try: "tomorrow at 3 PM""
+                prompt = "Sorry — I didn't catch the time. Try: \"tomorrow at 3 PM\""
                 return
             }
             step = .askAlert(title: title, dueAt: due)
@@ -106,7 +106,7 @@ final class CaptureFlow: ObservableObject {
         try? modelContext.save()
 
         // Schedule alert notification
-        await NotificationsManager.shared.schedule(reminder: item)
+        await NotificationsManager.shared.schedule(reminder: item, soundSetting: settings.notificationSound)
 
         // Schedule daily closeout if reminders exist today
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)

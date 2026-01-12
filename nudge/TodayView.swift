@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct RemindersView: View {
     @Query(
@@ -76,24 +77,55 @@ struct RemindersView: View {
 }
 
 struct ReminderRow: View {
-    let reminder: ReminderItem
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var reminder: ReminderItem
+    
+    var isOverdue: Bool {
+        guard let due = reminder.dueAt else { return false }
+        return due < Calendar.current.startOfDay(for: Date())
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(reminder.title)
-                .font(.body)
-
-            if let due = reminder.dueAt {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .font(.caption)
-                    Text(formatDueDate(due))
-                        .font(.caption)
-                }
-                .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            Button {
+                markComplete()
+            } label: {
+                Image(systemName: "circle")
+                    .font(.title2)
+                    .foregroundStyle(isOverdue ? .red : .secondary)
             }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(reminder.title)
+                    .font(.body)
+                    .foregroundStyle(isOverdue ? .primary : .primary)
+
+                if let due = reminder.dueAt {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                        Text(formatDueDate(due))
+                            .font(.caption)
+                    }
+                    .foregroundStyle(isOverdue ? .red : .secondary)
+                }
+            }
+            
+            Spacer()
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
+    }
+    
+    private func markComplete() {
+        withAnimation {
+            reminder.status = .completed
+            reminder.completedAt = .now
+            
+            // Cancel any pending notification
+            let notificationID = "\(reminder.id.uuidString)-alert"
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+        }
     }
 
     private func formatDueDate(_ date: Date) -> String {

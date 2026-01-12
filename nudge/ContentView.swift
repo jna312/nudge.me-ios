@@ -5,9 +5,13 @@ import UserNotifications
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var settings: AppSettings
+    @Binding var isSettingsOpen: Bool
 
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
+    
+    // Track if we were recording before settings opened
+    @State private var wasRecordingBeforeSettings = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -31,15 +35,18 @@ struct ContentView: View {
                         await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
                         transcriber.transcript = ""
 
-                        // Give UI a breath, then listen again
+                        // Give UI a breath, then listen again (only if settings not open)
                         try? await Task.sleep(nanoseconds: 200_000_000)
-                        try? transcriber.start()
+                        if !isSettingsOpen {
+                            try? transcriber.start()
+                        }
                     }
                 } else {
                     try? transcriber.start()
                 }
             }
             .buttonStyle(.borderedProminent)
+            .disabled(isSettingsOpen)
         }
         .padding()
         .task {
@@ -47,16 +54,29 @@ struct ContentView: View {
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
             
-            if !transcriber.isRecording {
+            if !transcriber.isRecording && !isSettingsOpen {
                 try? transcriber.start()
                 
                 // Debug (optional)
                 _ = await UNUserNotificationCenter.current().notificationSettings()
             }
         }
+        .onChange(of: isSettingsOpen) { _, isOpen in
+            if isOpen {
+                // Settings opened - pause recording
+                wasRecordingBeforeSettings = transcriber.isRecording
+                if transcriber.isRecording {
+                    transcriber.stop()
+                }
+            } else {
+                // Settings closed - resume recording if we were recording before
+                if wasRecordingBeforeSettings {
+                    try? transcriber.start()
+                }
+            }
+        }
         .onDisappear {
             if transcriber.isRecording { transcriber.stop() }
         }
-
     }
 }

@@ -8,7 +8,7 @@ struct RootView: View {
         TabView {
             // MAIN UI (Speak)
             NavigationStack {
-                ContentView()
+                ContentView(isSettingsOpen: $showSettings)
                     .environmentObject(settings)
                     .navigationTitle("Nudge")
                     .toolbar {

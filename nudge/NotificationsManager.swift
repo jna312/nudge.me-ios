@@ -70,7 +70,7 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
         print("🔔 Action tapped:", response.actionIdentifier)
     }
     
-    func schedule(reminder: ReminderItem) async {
+    func schedule(reminder: ReminderItem, soundSetting: String = "default") async {
         let center = UNUserNotificationCenter.current()
         let notificationID = "\(reminder.id.uuidString)-alert"
 
@@ -81,7 +81,7 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
         let content = UNMutableNotificationContent()
         content.title = reminder.title
-        content.sound = .default
+        content.sound = notificationSound(for: soundSetting)
         content.userInfo = ["reminderID": reminder.id.uuidString]
         content.categoryIdentifier = reminderCategoryIdentifier
 
@@ -90,6 +90,23 @@ final class NotificationsManager: NSObject, UNUserNotificationCenterDelegate {
 
         let req = UNNotificationRequest(identifier: notificationID, content: content, trigger: trigger)
         try? await center.add(req)
+    }
+    
+    private func notificationSound(for setting: String) -> UNNotificationSound? {
+        switch setting {
+        case "silent":
+            return nil
+        case "tri-tone":
+            return UNNotificationSound(named: UNNotificationSoundName("tri-tone.caf"))
+        case "chime":
+            return UNNotificationSound(named: UNNotificationSoundName("chime.caf"))
+        case "pulse":
+            return UNNotificationSound(named: UNNotificationSoundName("pulse.caf"))
+        case "synth":
+            return UNNotificationSound(named: UNNotificationSoundName("synth.caf"))
+        default:
+            return .default
+        }
     }
 
 }
