@@ -358,33 +358,53 @@ final class CaptureFlow: ObservableObject {
     }
     
     private func parseTimeOnly(_ s: String) -> (hour: Int, minute: Int)? {
-        let lower = normalizeNumberWords(s.lowercased())
+        var lower = normalizeNumberWords(s.lowercased())
+        
+        // Normalize various speech-to-text outputs
+        lower = lower
             .replacingOccurrences(of: "p.m.", with: "pm")
             .replacingOccurrences(of: "a.m.", with: "am")
             .replacingOccurrences(of: "p. m.", with: "pm")
             .replacingOccurrences(of: "a. m.", with: "am")
+            .replacingOccurrences(of: " o'clock", with: "")
+            .replacingOccurrences(of: " oclock", with: "")
+            .replacingOccurrences(of: "in the morning", with: "am")
+            .replacingOccurrences(of: "in the afternoon", with: "pm")
+            .replacingOccurrences(of: "in the evening", with: "pm")
+            .replacingOccurrences(of: "at night", with: "pm")
+            .replacingOccurrences(of: "tonight", with: "pm")
         
-        // Pattern with AM/PM (most specific - try first)
-        let ampmPattern = #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#
-        if let re = try? NSRegularExpression(pattern: ampmPattern, options: [.caseInsensitive]) {
-            let range = NSRange(lower.startIndex..., in: lower)
-            if let m = re.firstMatch(in: lower, range: range),
-               let hrR = Range(m.range(at: 1), in: lower),
-               let ampmR = Range(m.range(at: 3), in: lower) {
-                
-                var hour = Int(lower[hrR]) ?? 0
-                var minute = 0
-                
-                if let minR = Range(m.range(at: 2), in: lower) {
-                    minute = Int(lower[minR]) ?? 0
-                }
-                
-                let ampm = String(lower[ampmR]).lowercased()
-                if ampm == "pm" && hour < 12 { hour += 12 }
-                if ampm == "am" && hour == 12 { hour = 0 }
-                
-                if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
-                    return (hour, minute)
+        print("🕐 Parsing time from: '\(lower)'")
+        
+        // Multiple patterns to try (most specific first)
+        let patterns = [
+            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,  // "6 pm", "6:30 pm"
+            #"(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,             // No "at" prefix
+        ]
+        
+        for pattern in patterns {
+            if let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(lower.startIndex..., in: lower)
+                if let m = re.firstMatch(in: lower, range: range),
+                   let hrR = Range(m.range(at: 1), in: lower) {
+                    
+                    var hour = Int(lower[hrR]) ?? 0
+                    var minute = 0
+                    
+                    if m.numberOfRanges > 2, let minR = Range(m.range(at: 2), in: lower) {
+                        minute = Int(lower[minR]) ?? 0
+                    }
+                    
+                    if m.numberOfRanges > 3, let ampmR = Range(m.range(at: 3), in: lower) {
+                        let ampm = String(lower[ampmR]).lowercased()
+                        if ampm == "pm" && hour < 12 { hour += 12 }
+                        if ampm == "am" && hour == 12 { hour = 0 }
+                    }
+                    
+                    if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
+                        print("🕐 Parsed time: \(hour):\(String(format: "%02d", minute))")
+                        return (hour, minute)
+                    }
                 }
             }
         }
@@ -405,12 +425,14 @@ final class CaptureFlow: ObservableObject {
                     }
                     
                     if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
+                        print("🕐 Parsed simple time: \(hour):\(String(format: "%02d", minute))")
                         return (hour, minute)
                     }
                 }
             }
         }
         
+        print("🕐 Failed to parse time from: '\(lower)'")
         return nil
     }
     
