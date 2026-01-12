@@ -131,6 +131,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         try? await center.add(mainReq)
         
         print("🔔 Scheduled main notification for '\(reminder.title)' at \(alertAt)")
+        print("🔔 Sound type: \(type(of: notificationSound)), sound: \(notificationSound)")
         
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
