@@ -10,6 +10,7 @@ final class RingtoneManager: ObservableObject {
     
     /// Available ringtones - these correspond to .caf files in the bundle
     enum Ringtone: String, CaseIterable, Identifiable {
+        case systemDefault = "default"
         case standard = "standard"
         case gentle = "gentle"
         case urgent = "urgent"
@@ -23,6 +24,7 @@ final class RingtoneManager: ObservableObject {
         
         var displayName: String {
             switch self {
+            case .systemDefault: return "Default (System)"
             case .standard: return "Standard"
             case .gentle: return "Gentle"
             case .urgent: return "Urgent"
@@ -40,6 +42,9 @@ final class RingtoneManager: ObservableObject {
         
         /// Returns the notification sound for this ringtone
         var notificationSound: UNNotificationSound {
+            if self == .systemDefault {
+                return .default
+            }
             if Bundle.main.url(forResource: rawValue, withExtension: "caf") != nil {
                 return UNNotificationSound(named: UNNotificationSoundName(fileName))
             }
@@ -87,6 +92,7 @@ final class RingtoneManager: ObservableObject {
     private func playSystemSound(for ringtone: Ringtone) {
         let soundID: SystemSoundID
         switch ringtone {
+        case .systemDefault: soundID = 1007
         case .standard: soundID = 1007
         case .gentle: soundID = 1013
         case .urgent: soundID = 1005
