@@ -442,10 +442,14 @@ struct EditReminderView: View {
                         HStack {
                             Image(systemName: "bell.badge")
                                 .foregroundStyle(.orange)
-                            Text("You'll get a heads up \(formatEarlyAlert(earlyAlertMinutes)) before")
+                            Text("You'll get a \"Coming Up\" notification \(formatEarlyAlert(earlyAlertMinutes)) before the main alert.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
+                    } else {
+                        Text("Tip: Say \"with a 15 minute warning\" when creating reminders to add an early alert automatically.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 

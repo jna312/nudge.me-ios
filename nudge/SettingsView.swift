@@ -123,7 +123,11 @@ struct SettingsView: View {
                 }
                 
                 if settings.defaultEarlyAlertMinutes > 0 {
-                    Text("New reminders will automatically include a \(formatEarlyAlert(settings.defaultEarlyAlertMinutes)) heads up.")
+                    Text("New reminders will automatically get a \(formatEarlyAlert(settings.defaultEarlyAlertMinutes)) heads up notification.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("You can also say \"with a 15 minute warning\" when creating a reminder, or add one later by tapping the reminder to edit.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
