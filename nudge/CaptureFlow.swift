@@ -146,6 +146,7 @@ final class CaptureFlow: ObservableObject {
                 )
             } else {
                 prompt = "What time? (e.g. \"9 AM\" or \"3:30 PM\")"
+                needsFollowUp = true
             }
             
         case .confirmDuplicate(let title, let dueAt, _):
@@ -358,18 +359,18 @@ final class CaptureFlow: ObservableObject {
     
     private func parseTimeOnly(_ s: String) -> (hour: Int, minute: Int)? {
         let lower = normalizeNumberWords(s.lowercased())
+            .replacingOccurrences(of: "p.m.", with: "pm")
+            .replacingOccurrences(of: "a.m.", with: "am")
+            .replacingOccurrences(of: "p. m.", with: "pm")
+            .replacingOccurrences(of: "a. m.", with: "am")
         
-        let patterns = [
-            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,
-            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?"#
-        ]
-        
-        for pattern in patterns {
-            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+        // Pattern with AM/PM (most specific - try first)
+        let ampmPattern = #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#
+        if let re = try? NSRegularExpression(pattern: ampmPattern, options: [.caseInsensitive]) {
             let range = NSRange(lower.startIndex..., in: lower)
-            
             if let m = re.firstMatch(in: lower, range: range),
-               let hrR = Range(m.range(at: 1), in: lower) {
+               let hrR = Range(m.range(at: 1), in: lower),
+               let ampmR = Range(m.range(at: 3), in: lower) {
                 
                 var hour = Int(lower[hrR]) ?? 0
                 var minute = 0
@@ -378,14 +379,34 @@ final class CaptureFlow: ObservableObject {
                     minute = Int(lower[minR]) ?? 0
                 }
                 
-                if let ampmR = Range(m.range(at: 3), in: lower) {
-                    let ampm = String(lower[ampmR]).lowercased()
-                    if ampm == "pm" && hour < 12 { hour += 12 }
-                    if ampm == "am" && hour == 12 { hour = 0 }
-                }
+                let ampm = String(lower[ampmR]).lowercased()
+                if ampm == "pm" && hour < 12 { hour += 12 }
+                if ampm == "am" && hour == 12 { hour = 0 }
                 
                 if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
                     return (hour, minute)
+                }
+            }
+        }
+        
+        // Pattern without AM/PM (only use if no am/pm in input)
+        if !lower.contains("am") && !lower.contains("pm") {
+            let simplePattern = #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?"#
+            if let re = try? NSRegularExpression(pattern: simplePattern, options: [.caseInsensitive]) {
+                let range = NSRange(lower.startIndex..., in: lower)
+                if let m = re.firstMatch(in: lower, range: range),
+                   let hrR = Range(m.range(at: 1), in: lower) {
+                    
+                    var hour = Int(lower[hrR]) ?? 0
+                    var minute = 0
+                    
+                    if let minR = Range(m.range(at: 2), in: lower) {
+                        minute = Int(lower[minR]) ?? 0
+                    }
+                    
+                    if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
+                        return (hour, minute)
+                    }
                 }
             }
         }
