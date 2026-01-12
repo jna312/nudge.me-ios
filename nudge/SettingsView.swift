@@ -2,11 +2,13 @@ import SwiftUI
 import EventKit
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject var settings: AppSettings
     @ObservedObject private var tipsManager = TipsManager.shared
     @State private var calendarAccessGranted = false
-    @State private var showingImportAlert = false
-    @State private var importedCount = 0
+    @State private var showingSyncAlert = false
+    @State private var syncMessage = ""
+    @State private var isSyncing = false
 
     var body: some View {
         Form {
@@ -44,21 +46,56 @@ struct SettingsView: View {
             
             Section {
                 Toggle("Sync with Calendar", isOn: $settings.calendarSyncEnabled)
+                    .disabled(isSyncing)
                     .onChange(of: settings.calendarSyncEnabled) { _, enabled in
                         if enabled {
                             Task {
+                                isSyncing = true
                                 calendarAccessGranted = await CalendarSync.shared.requestAccess()
-                                if !calendarAccessGranted {
+                                
+                                if calendarAccessGranted {
+                                    // Sync all existing reminders
+                                    let result = await CalendarSync.shared.syncAllReminders(from: modelContext)
+                                    syncMessage = "Synced \(result.synced) reminder\(result.synced == 1 ? "" : "s") to Calendar"
+                                    if result.failed > 0 {
+                                        syncMessage += " (\(result.failed) failed)"
+                                    }
+                                    showingSyncAlert = true
+                                } else {
+                                    syncMessage = "Calendar access denied. Please enable in Settings > Privacy > Calendars."
+                                    showingSyncAlert = true
                                     settings.calendarSyncEnabled = false
                                 }
+                                isSyncing = false
                             }
                         }
                     }
                 
-                if settings.calendarSyncEnabled {
+                if isSyncing {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Syncing...")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if settings.calendarSyncEnabled {
                     Text("Reminders sync to \"Nudge Reminders\" calendar.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    
+                    Button("Sync Now") {
+                        Task {
+                            isSyncing = true
+                            let result = await CalendarSync.shared.syncAllReminders(from: modelContext)
+                            syncMessage = "Synced \(result.synced) reminder\(result.synced == 1 ? "" : "s")"
+                            if result.failed > 0 {
+                                syncMessage += " (\(result.failed) failed)"
+                            }
+                            showingSyncAlert = true
+                            isSyncing = false
+                        }
+                    }
                 }
             } header: {
                 Text("Calendar Integration")
@@ -92,8 +129,10 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
-        .alert("Imported \(importedCount) events", isPresented: $showingImportAlert) {
+        .alert("Calendar Sync", isPresented: $showingSyncAlert) {
             Button("OK", role: .cancel) { }
+        } message: {
+            Text(syncMessage)
         }
         .task {
             if settings.calendarSyncEnabled {

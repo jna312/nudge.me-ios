@@ -9,7 +9,7 @@ import UIKit
 final class CalendarSync {
     static let shared = CalendarSync()
     
-    private let eventStore = EKEventStore()
+    private var eventStore = EKEventStore()
     private var nudgeCalendar: EKCalendar?
     
     private init() {}
@@ -18,7 +18,15 @@ final class CalendarSync {
     
     func requestAccess() async -> Bool {
         do {
-            return try await eventStore.requestFullAccessToEvents()
+            let granted = try await eventStore.requestFullAccessToEvents()
+            if granted {
+                // Refresh event store after permission granted
+                eventStore = EKEventStore()
+                print("📅 Calendar access granted")
+            } else {
+                print("📅 Calendar access denied")
+            }
+            return granted
         } catch {
             print("📅 Calendar access error: \(error)")
             return false
@@ -28,43 +36,79 @@ final class CalendarSync {
     // MARK: - Calendar Setup
     
     private func getOrCreateNudgeCalendar() -> EKCalendar? {
+        // Return cached if available
+        if let cached = nudgeCalendar, eventStore.calendar(withIdentifier: cached.calendarIdentifier) != nil {
+            return cached
+        }
+        
+        // Look for existing
         let calendars = eventStore.calendars(for: .event)
+        print("📅 Available calendars: \(calendars.map { $0.title })")
+        
         if let existing = calendars.first(where: { $0.title == "Nudge Reminders" }) {
+            print("📅 Found existing Nudge Reminders calendar")
+            nudgeCalendar = existing
             return existing
         }
         
+        // Create new calendar
         let calendar = EKCalendar(for: .event, eventStore: eventStore)
         calendar.title = "Nudge Reminders"
         calendar.cgColor = UIColor.systemBlue.cgColor
         
-        if let localSource = eventStore.sources.first(where: { $0.sourceType == .local }) {
-            calendar.source = localSource
-        } else if let iCloudSource = eventStore.sources.first(where: { $0.sourceType == .calDAV }) {
+        // Find a writable source
+        let sources = eventStore.sources
+        print("📅 Available sources: \(sources.map { "\($0.title) - \($0.sourceType.rawValue)" })")
+        
+        // Prefer iCloud, then local, then default
+        if let iCloudSource = sources.first(where: { $0.sourceType == .calDAV && $0.title.lowercased().contains("icloud") }) {
             calendar.source = iCloudSource
-        } else if let defaultSource = eventStore.defaultCalendarForNewEvents?.source {
-            calendar.source = defaultSource
+            print("📅 Using iCloud source")
+        } else if let localSource = sources.first(where: { $0.sourceType == .local }) {
+            calendar.source = localSource
+            print("📅 Using local source")
+        } else if let defaultCal = eventStore.defaultCalendarForNewEvents {
+            calendar.source = defaultCal.source
+            print("📅 Using default calendar source")
+        } else if let firstSource = sources.first {
+            calendar.source = firstSource
+            print("📅 Using first available source")
         } else {
-            print("📅 No calendar source available")
+            print("📅 ERROR: No calendar source available")
             return nil
         }
         
         do {
             try eventStore.saveCalendar(calendar, commit: true)
-            print("📅 Created Nudge Reminders calendar")
+            print("📅 Created Nudge Reminders calendar successfully")
+            nudgeCalendar = calendar
             return calendar
         } catch {
-            print("📅 Failed to create calendar: \(error)")
+            print("📅 ERROR: Failed to create calendar: \(error.localizedDescription)")
             return nil
         }
     }
     
     // MARK: - Sync Reminder to Calendar
     
-    func syncToCalendar(reminder: ReminderItem) async {
-        guard await requestAccess() else { return }
+    @discardableResult
+    func syncToCalendar(reminder: ReminderItem) async -> Bool {
+        print("📅 Syncing reminder: \(reminder.title)")
         
-        guard let calendar = getOrCreateNudgeCalendar(),
-              let dueAt = reminder.dueAt else { return }
+        guard await requestAccess() else {
+            print("📅 ERROR: No calendar access")
+            return false
+        }
+        
+        guard let calendar = getOrCreateNudgeCalendar() else {
+            print("📅 ERROR: Could not get/create Nudge calendar")
+            return false
+        }
+        
+        guard let dueAt = reminder.dueAt else {
+            print("📅 ERROR: Reminder has no due date")
+            return false
+        }
         
         let existingEvent = findEvent(for: reminder)
         
@@ -76,8 +120,10 @@ final class CalendarSync {
             do {
                 try eventStore.save(event, span: .thisEvent)
                 print("📅 Updated calendar event for: \(reminder.title)")
+                return true
             } catch {
-                print("📅 Failed to update event: \(error)")
+                print("📅 ERROR: Failed to update event: \(error.localizedDescription)")
+                return false
             }
         } else {
             let event = EKEvent(eventStore: eventStore)
@@ -87,14 +133,16 @@ final class CalendarSync {
             event.calendar = calendar
             event.notes = "Created by Nudge\nID: \(reminder.id.uuidString)"
             
-            let alarm = EKAlarm(relativeOffset: -900)
+            let alarm = EKAlarm(relativeOffset: -900) // 15 min before
             event.addAlarm(alarm)
             
             do {
                 try eventStore.save(event, span: .thisEvent)
                 print("📅 Created calendar event for: \(reminder.title)")
+                return true
             } catch {
-                print("📅 Failed to create event: \(error)")
+                print("📅 ERROR: Failed to create event: \(error.localizedDescription)")
+                return false
             }
         }
     }
@@ -130,6 +178,44 @@ final class CalendarSync {
         }
     }
     
+    // MARK: - Sync All Reminders
+    
+    func syncAllReminders(from context: ModelContext) async -> (synced: Int, failed: Int) {
+        print("📅 Starting sync of all reminders...")
+        
+        guard await requestAccess() else {
+            print("📅 ERROR: No calendar access for sync all")
+            return (0, 0)
+        }
+        
+        let descriptor = FetchDescriptor<ReminderItem>(
+            predicate: #Predicate { $0.statusRaw == "open" }
+        )
+        
+        guard let reminders = try? context.fetch(descriptor) else {
+            print("📅 ERROR: Could not fetch reminders")
+            return (0, 0)
+        }
+        
+        let remindersWithDue = reminders.filter { $0.dueAt != nil }
+        print("📅 Found \(remindersWithDue.count) reminders to sync")
+        
+        var synced = 0
+        var failed = 0
+        
+        for reminder in remindersWithDue {
+            let success = await syncToCalendar(reminder: reminder)
+            if success {
+                synced += 1
+            } else {
+                failed += 1
+            }
+        }
+        
+        print("📅 Sync complete: \(synced) synced, \(failed) failed")
+        return (synced, failed)
+    }
+    
     // MARK: - Import from Calendar
     
     func importFromCalendar(in context: ModelContext) async -> [ReminderItem] {
@@ -143,7 +229,6 @@ final class CalendarSync {
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let events = eventStore.events(matching: predicate)
         
-        // Fetch all open reminders first to check for duplicates
         let existingDescriptor = FetchDescriptor<ReminderItem>(
             predicate: #Predicate { $0.statusRaw == "open" }
         )
@@ -152,12 +237,10 @@ final class CalendarSync {
         
         for event in events {
             guard !event.isAllDay else { continue }
-            
             if event.notes?.contains("Created by Nudge") == true { continue }
             
             let eventTitle = event.title ?? "Calendar Event"
             
-            // Check if we already have this reminder (case-insensitive)
             if existingTitles.contains(eventTitle.lowercased()) {
                 continue
             }
@@ -182,26 +265,5 @@ final class CalendarSync {
         }
         
         return imported
-    }
-    
-    // MARK: - Sync All Reminders
-    
-    func syncAllReminders(from context: ModelContext) async {
-        guard await requestAccess() else { return }
-        
-        let descriptor = FetchDescriptor<ReminderItem>(
-            predicate: #Predicate { $0.statusRaw == "open" }
-        )
-        
-        guard let reminders = try? context.fetch(descriptor) else { return }
-        
-        // Filter for reminders with dueAt in Swift code
-        let remindersWithDue = reminders.filter { $0.dueAt != nil }
-        
-        for reminder in remindersWithDue {
-            await syncToCalendar(reminder: reminder)
-        }
-        
-        print("📅 Synced \(remindersWithDue.count) reminders to calendar")
     }
 }
