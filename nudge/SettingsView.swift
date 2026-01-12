@@ -1,10 +1,8 @@
 import SwiftUI
-import Observation
 import AudioToolbox
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @State private var soundPlayer = SoundPreviewPlayer()
 
     var body: some View {
         Form {
@@ -41,7 +39,7 @@ struct SettingsView: View {
                 ForEach(NotificationSoundOption.allCases) { option in
                     Button {
                         settings.notificationSound = option.rawValue
-                        playPreviewSound()
+                        playSound(option)
                     } label: {
                         HStack {
                             Text(option.displayName)
@@ -74,11 +72,9 @@ struct SettingsView: View {
         .navigationTitle("Settings")
     }
     
-    private func playPreviewSound() {
-        guard let option = NotificationSoundOption(rawValue: settings.notificationSound),
-              option != .silent else { return }
-        
-        soundPlayer.play(sound: option)
+    private func playSound(_ option: NotificationSoundOption) {
+        guard option != .silent else { return }
+        AudioServicesPlaySystemSound(option.systemSoundID)
     }
 
     private func minutesFromMidnight(_ date: Date) -> Int {
@@ -99,19 +95,6 @@ struct SettingsView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-}
-
-// MARK: - Sound Preview Player
-
-class SoundPreviewPlayer {
-    
-    func play(sound: NotificationSoundOption) {
-        guard sound != .silent else { return }
-        
-        // Play the system sound using device's ringer volume
-        let soundID = sound.systemSoundID
-        AudioServicesPlaySystemSound(soundID)
     }
 }
 
