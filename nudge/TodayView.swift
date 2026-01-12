@@ -6,7 +6,15 @@ struct RemindersView: View {
     @Query(
         filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
         sort: \ReminderItem.dueAt
-    ) private var reminders: [ReminderItem]
+    ) private var openReminders: [ReminderItem]
+    
+    @Query(
+        filter: #Predicate<ReminderItem> { $0.statusRaw == "completed" },
+        sort: \ReminderItem.completedAt,
+        order: .reverse
+    ) private var completedReminders: [ReminderItem]
+    
+    @State private var isCompletedExpanded = false
 
     private var groupedReminders: [(String, [ReminderItem])] {
         let calendar = Calendar.current
@@ -22,7 +30,7 @@ struct RemindersView: View {
         var later: [ReminderItem] = []
         var noDue: [ReminderItem] = []
 
-        for reminder in reminders {
+        for reminder in openReminders {
             guard let due = reminder.dueAt else {
                 noDue.append(reminder)
                 continue
@@ -54,7 +62,7 @@ struct RemindersView: View {
 
     var body: some View {
         Group {
-            if reminders.isEmpty {
+            if openReminders.isEmpty && completedReminders.isEmpty {
                 ContentUnavailableView(
                     "No Reminders",
                     systemImage: "checkmark.circle",
@@ -62,10 +70,32 @@ struct RemindersView: View {
                 )
             } else {
                 List {
+                    // Open reminders grouped by date
                     ForEach(groupedReminders, id: \.0) { section, items in
                         Section(section) {
                             ForEach(items) { reminder in
                                 ReminderRow(reminder: reminder)
+                            }
+                        }
+                    }
+                    
+                    // Completed reminders (collapsible)
+                    if !completedReminders.isEmpty {
+                        Section {
+                            DisclosureGroup(isExpanded: $isCompletedExpanded) {
+                                ForEach(completedReminders) { reminder in
+                                    CompletedReminderRow(reminder: reminder)
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Completed")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Text("\(completedReminders.count)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -148,6 +178,53 @@ struct ReminderRow: View {
         } else {
             let formatter = DateFormatter()
             formatter.dateFormat = "EEE, MMM d 'at' h:mm a"
+            return formatter.string(from: date)
+        }
+    }
+}
+
+struct CompletedReminderRow: View {
+    let reminder: ReminderItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(reminder.title)
+                    .font(.body)
+                    .strikethrough()
+                    .foregroundStyle(.secondary)
+
+                if let completedAt = reminder.completedAt {
+                    Text("Completed \(formatCompletedDate(completedAt))")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func formatCompletedDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "today at \(formatter.string(from: date))"
+        } else if calendar.isDateInYesterday(date) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "yesterday at \(formatter.string(from: date))"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
             return formatter.string(from: date)
         }
     }

@@ -1,9 +1,10 @@
 import SwiftUI
+import Observation
 import AudioToolbox
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @StateObject private var soundPlayer = SoundPreviewPlayer()
+    @State private var soundPlayer = SoundPreviewPlayer()
 
     var body: some View {
         Form {
@@ -103,7 +104,7 @@ struct SettingsView: View {
 
 // MARK: - Sound Preview Player
 
-class SoundPreviewPlayer: ObservableObject {
+class SoundPreviewPlayer {
     
     func play(sound: NotificationSoundOption) {
         guard sound != .silent else { return }
