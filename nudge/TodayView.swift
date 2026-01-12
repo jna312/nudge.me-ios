@@ -27,11 +27,25 @@ struct RemindersView: View {
         ("Peace of Mind", "leaf", "No pending tasks. Relax.")
     ]
     
-    private var randomEmptyState: (String, String, String) {
-        emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
+    @State private var emptyState: (title: String, image: String, description: String)? = nil
+    
+    @ViewBuilder
+    private var emptyStateView: some View {
+        let state = emptyState ?? (emptyStateMessages.first ?? ("No Reminders", "checkmark.circle", "You're all caught up!"))
+        ContentUnavailableView(
+            state.title,
+            systemImage: state.image,
+            description: Text(state.description)
+        )
     }
-
-    private var groupedReminders: [(String, [ReminderItem])] {
+    
+    private struct ReminderSection: Identifiable {
+        let id = UUID()
+        let title: String
+        let items: [ReminderItem]
+    }
+    
+    private var groupedReminders: [ReminderSection] {
         let calendar = Calendar.current
         let now = Date()
         let startOfToday = calendar.startOfDay(for: now)
@@ -64,70 +78,46 @@ struct RemindersView: View {
             }
         }
 
-        var result: [(String, [ReminderItem])] = []
-        if !overdue.isEmpty { result.append(("Overdue", overdue)) }
-        if !today.isEmpty { result.append(("Today", today)) }
-        if !tomorrow.isEmpty { result.append(("Tomorrow", tomorrow)) }
-        if !thisWeek.isEmpty { result.append(("This Week", thisWeek)) }
-        if !later.isEmpty { result.append(("Later", later)) }
-        if !noDue.isEmpty { result.append(("No Date", noDue)) }
-
-        return result
+        var sections: [ReminderSection] = []
+        if !overdue.isEmpty { sections.append(ReminderSection(title: "Overdue", items: overdue)) }
+        if !today.isEmpty { sections.append(ReminderSection(title: "Today", items: today)) }
+        if !tomorrow.isEmpty { sections.append(ReminderSection(title: "Tomorrow", items: tomorrow)) }
+        if !thisWeek.isEmpty { sections.append(ReminderSection(title: "This Week", items: thisWeek)) }
+        if !later.isEmpty { sections.append(ReminderSection(title: "Later", items: later)) }
+        if !noDue.isEmpty { sections.append(ReminderSection(title: "No Date", items: noDue)) }
+        return sections
     }
 
     var body: some View {
-        Group {
-            if openReminders.isEmpty && completedReminders.isEmpty {
-                let state = randomEmptyState
-                let emptyTitle = state.0
-                let emptyImage = state.1
-                let emptyDescription = state.2
-                ContentUnavailableView(
-                    emptyTitle,
-                    systemImage: emptyImage,
-                    description: Text(emptyDescription)
-                )
-            } else {
-                List {
-                    ForEach(groupedReminders, id: \.0) { section, items in
-                        Section(section) {
-                            ForEach(items) { reminder in
-                                ReminderRow(reminder: reminder)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        editingReminder = reminder
-                                    }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                        Button {
-                                            snoozeReminder(reminder, minutes: 10)
-                                        } label: {
-                                            Label("10 min", systemImage: "clock.arrow.circlepath")
+        NavigationStack {
+            Group {
+                if openReminders.isEmpty && completedReminders.isEmpty {
+                    emptyStateView
+                } else {
+                    List {
+                        ForEach(groupedReminders) { section in
+                            Section(section.title) {
+                                ForEach(section.items) { reminder in
+                                    ReminderRow(reminder: reminder)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            editingReminder = reminder
                                         }
-                                        .tint(.orange)
-                                        
-                                        Button {
-                                            snoozeReminder(reminder, minutes: 60)
-                                        } label: {
-                                            Label("1 hour", systemImage: "clock")
+                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                            Button {
+                                                snoozeReminder(reminder, minutes: 10)
+                                            } label: {
+                                                Label("10 min", systemImage: "clock.arrow.circlepath")
+                                            }
+                                            .tint(.orange)
+                                            
+                                            Button {
+                                                snoozeReminder(reminder, minutes: 60)
+                                            } label: {
+                                                Label("1 hour", systemImage: "clock")
+                                            }
+                                            .tint(.blue)
                                         }
-                                        .tint(.blue)
-                                    }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                        Button(role: .destructive) {
-                                            deleteReminder(reminder)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                            }
-                        }
-                    }
-                    
-                    if !completedReminders.isEmpty {
-                        Section {
-                            DisclosureGroup(isExpanded: $isCompletedExpanded) {
-                                ForEach(completedReminders) { reminder in
-                                    CompletedReminderRow(reminder: reminder)
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                             Button(role: .destructive) {
                                                 deleteReminder(reminder)
@@ -136,45 +126,47 @@ struct RemindersView: View {
                                             }
                                         }
                                 }
-                            } label: {
-                                HStack {
-                                    Text("Completed")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text("\(completedReminders.count)")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        if !completedReminders.isEmpty {
+                            Section {
+                                DisclosureGroup(isExpanded: $isCompletedExpanded) {
+                                    ForEach(completedReminders) { reminder in
+                                        CompletedReminderRow(reminder: reminder)
+                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                                Button(role: .destructive) {
+                                                    deleteReminder(reminder)
+                                                } label: {
+                                                    Label("Delete", systemImage: "trash")
+                                                }
+                                            }
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text("Completed")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        Spacer()
+                                        Text("\(completedReminders.count)")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+            .navigationTitle("Reminders")
         }
-        .navigationTitle("Reminders")
         .sheet(item: $editingReminder) { reminder in
             EditReminderView(reminder: reminder)
         }
-        .overlay {
-            if showCelebration {
-                CelebrationView()
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                            withAnimation {
-                                showCelebration = false
-                            }
-                        }
-                    }
-            }
-        }
-        .onChange(of: openReminders.count) { oldCount, newCount in
-            if oldCount > 0 && newCount == 0 && completedReminders.count > 0 {
-                withAnimation(.spring()) {
-                    showCelebration = true
-                }
-                let generator = UINotificationFeedbackGenerator()
-                generator.notificationOccurred(.success)
+        .onAppear {
+            if emptyState == nil {
+                let pick = emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
+                emptyState = (title: pick.0, image: pick.1, description: pick.2)
             }
         }
     }
@@ -449,78 +441,20 @@ struct EditReminderView: View {
     }
 }
 
-struct CelebrationView: View {
-    @State private var particles: [ConfettiParticle] = []
-    
-    let emojis = ["🎉", "✨", "⭐️", "🌟", "🎊", "💫"]
-    
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-            
-            ForEach(particles) { particle in
-                Text(particle.emoji)
-                    .font(.system(size: particle.size))
-                    .position(particle.position)
-                    .opacity(particle.opacity)
-            }
-            
-            VStack(spacing: 16) {
-                Text("🎉")
-                    .font(.system(size: 60))
-                
-                Text("All Done!")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                
-                Text("You've completed all your reminders!")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-            .padding(32)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-        }
-        .onAppear {
-            startConfetti()
-        }
-    }
-    
-    private func startConfetti() {
-        let screenWidth = UIScreen.main.bounds.width
-        let screenHeight = UIScreen.main.bounds.height
-        
-        for i in 0..<30 {
-            let particle = ConfettiParticle(
-                id: i,
-                emoji: emojis.randomElement()!,
-                position: CGPoint(
-                    x: CGFloat.random(in: 0...screenWidth),
-                    y: -50
-                ),
-                size: CGFloat.random(in: 20...40),
-                opacity: 1.0
-            )
-            particles.append(particle)
-            
-            withAnimation(.easeIn(duration: Double.random(in: 1.5...2.5)).delay(Double(i) * 0.05)) {
-                if let index = particles.firstIndex(where: { $0.id == i }) {
-                    particles[index].position.y = screenHeight + 50
-                    particles[index].position.x += CGFloat.random(in: -100...100)
-                    particles[index].opacity = 0
-                }
-            }
-        }
-    }
+struct EmptyStateModel {
+    let title: String
+    let systemImage: String
+    let description: String
 }
+struct EmptyStateView: View {
+    let state: EmptyStateModel
 
-struct ConfettiParticle: Identifiable {
-    let id: Int
-    let emoji: String
-    var position: CGPoint
-    let size: CGFloat
-    var opacity: Double
+    var body: some View {
+        ContentUnavailableView(
+            state.title,
+            systemImage: state.systemImage,
+            description: Text(state.description)
+        )
+    }
 }
 
