@@ -94,7 +94,7 @@ struct SettingsView: View {
                         Text("Syncing...").font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if settings.calendarSyncEnabled {
-                    Text("Reminders sync to \"Nudge Reminders\" calendar.")
+                    Text("Reminders appear in a \"Nudge Reminders\" calendar in Apple Calendar.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     
@@ -108,6 +108,10 @@ struct SettingsView: View {
                             isSyncing = false
                         }
                     }
+                } else {
+                    Text("When enabled, reminders are added to Apple Calendar so you can see them alongside your events. A separate \"Nudge Reminders\" calendar is created.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("Calendar Integration")
