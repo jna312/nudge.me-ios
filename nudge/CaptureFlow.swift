@@ -362,7 +362,7 @@ final class CaptureFlow: ObservableObject {
     }
     
     private func parseTimeOnly(_ s: String) -> (hour: Int, minute: Int)? {
-        var lower = normalizeNumberWords(s.lowercased())
+        var lower = s.normalizeNumberWords()
         
         // Normalize various speech-to-text outputs
         lower = lower
@@ -378,7 +378,6 @@ final class CaptureFlow: ObservableObject {
             .replacingOccurrences(of: "at night", with: "pm")
             .replacingOccurrences(of: "tonight", with: "pm")
         
-        print("🕐 Parsing time from: '\(lower)'")
         
         // Multiple patterns to try (most specific first)
         let patterns = [
@@ -406,7 +405,6 @@ final class CaptureFlow: ObservableObject {
                     }
                     
                     if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
-                        print("🕐 Parsed time: \(hour):\(String(format: "%02d", minute))")
                         return (hour, minute)
                     }
                 }
@@ -429,20 +427,17 @@ final class CaptureFlow: ObservableObject {
                     }
                     // For ambiguous hours (1-12), don't guess - ask the user to specify AM or PM
                     if hour >= 1 && hour <= 12 {
-                        print("🕐 Ambiguous time \(hour):\(String(format: "%02d", minute)) - need AM/PM")
                         return nil  // Will prompt user to specify AM or PM
                     }
                     
                     // Unambiguous hours (0, 13-23) can be used directly
                     if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
-                        print("🕐 Parsed unambiguous time: \(hour):\(String(format: "%02d", minute))")
                         return (hour, minute)
                     }
                 }
             }
         }
         
-        print("🕐 Failed to parse time from: '\(lower)'")
         return nil
     }
     
@@ -555,17 +550,6 @@ final class CaptureFlow: ObservableObject {
         return "\(minutes) min"
     }
 
-    private func normalizeNumberWords(_ text: String) -> String {
-        let map: [String: String] = [
-            "one":"1","two":"2","three":"3","four":"4","five":"5","six":"6",
-            "seven":"7","eight":"8","nine":"9","ten":"10","eleven":"11","twelve":"12"
-        ]
-        var t = text.lowercased()
-        for (word, digit) in map {
-            t = t.replacingOccurrences(of: "\\b\(word)\\b", with: digit, options: .regularExpression)
-        }
-        return t
-    }
     
     private func applyWritingStyle(_ s: String, style: String) -> String {
         switch style {

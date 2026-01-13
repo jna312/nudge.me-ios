@@ -18,19 +18,15 @@ final class CalendarSync {
     
     func requestAccess() async -> Bool {
         let status = EKEventStore.authorizationStatus(for: .event)
-        print("📅 Current calendar authorization status: \(status.rawValue)")
         
         switch status {
         case .authorized, .fullAccess:
-            print("📅 Already have calendar access")
             return true
             
         case .denied, .restricted:
-            print("📅 Calendar access denied or restricted")
             return false
             
         case .notDetermined, .writeOnly:
-            print("📅 Requesting calendar access...")
             return await requestNewAccess()
             
         @unknown default:
@@ -58,13 +54,10 @@ final class CalendarSync {
             
             if granted {
                 eventStore = EKEventStore()
-                print("📅 Calendar access granted!")
             } else {
-                print("📅 Calendar access denied by user")
             }
             return granted
         } catch {
-            print("📅 Calendar access error: \(error.localizedDescription)")
             return false
         }
     }
@@ -77,10 +70,8 @@ final class CalendarSync {
         }
         
         let calendars = eventStore.calendars(for: .event)
-        print("📅 Available calendars: \(calendars.map { $0.title })")
         
         if let existing = calendars.first(where: { $0.title == "Nudge Reminders" }) {
-            print("📅 Found existing Nudge Reminders calendar")
             nudgeCalendar = existing
             return existing
         }
@@ -90,32 +81,24 @@ final class CalendarSync {
         calendar.cgColor = UIColor.systemBlue.cgColor
         
         let sources = eventStore.sources
-        print("📅 Available sources: \(sources.map { "\($0.title) - \($0.sourceType.rawValue)" })")
         
         if let iCloudSource = sources.first(where: { $0.sourceType == .calDAV && $0.title.lowercased().contains("icloud") }) {
             calendar.source = iCloudSource
-            print("📅 Using iCloud source")
         } else if let localSource = sources.first(where: { $0.sourceType == .local }) {
             calendar.source = localSource
-            print("📅 Using local source")
         } else if let defaultCal = eventStore.defaultCalendarForNewEvents {
             calendar.source = defaultCal.source
-            print("📅 Using default calendar source")
         } else if let firstSource = sources.first {
             calendar.source = firstSource
-            print("📅 Using first available source")
         } else {
-            print("📅 ERROR: No calendar source available")
             return nil
         }
         
         do {
             try eventStore.saveCalendar(calendar, commit: true)
-            print("📅 Created Nudge Reminders calendar successfully")
             nudgeCalendar = calendar
             return calendar
         } catch {
-            print("📅 ERROR: Failed to create calendar: \(error.localizedDescription)")
             return nil
         }
     }
@@ -124,20 +107,16 @@ final class CalendarSync {
     
     @discardableResult
     func syncToCalendar(reminder: ReminderItem) async -> Bool {
-        print("📅 Syncing reminder: \(reminder.title)")
         
         guard await requestAccess() else {
-            print("📅 ERROR: No calendar access")
             return false
         }
         
         guard let calendar = getOrCreateNudgeCalendar() else {
-            print("📅 ERROR: Could not get/create Nudge calendar")
             return false
         }
         
         guard let dueAt = reminder.dueAt else {
-            print("📅 ERROR: Reminder has no due date")
             return false
         }
         
@@ -150,10 +129,8 @@ final class CalendarSync {
             
             do {
                 try eventStore.save(event, span: .thisEvent)
-                print("📅 Updated calendar event for: \(reminder.title)")
                 return true
             } catch {
-                print("📅 ERROR: Failed to update event: \(error.localizedDescription)")
                 return false
             }
         } else {
@@ -169,10 +146,8 @@ final class CalendarSync {
             
             do {
                 try eventStore.save(event, span: .thisEvent)
-                print("📅 Created calendar event for: \(reminder.title)")
                 return true
             } catch {
-                print("📅 ERROR: Failed to create event: \(error.localizedDescription)")
                 return false
             }
         }
@@ -186,9 +161,7 @@ final class CalendarSync {
         if let event = findEvent(for: reminder) {
             do {
                 try eventStore.remove(event, span: .thisEvent)
-                print("📅 Removed calendar event for: \(reminder.title)")
             } catch {
-                print("📅 Failed to remove event: \(error)")
             }
         }
     }
@@ -212,10 +185,8 @@ final class CalendarSync {
     // MARK: - Sync All Reminders
     
     func syncAllReminders(from context: ModelContext) async -> (synced: Int, failed: Int) {
-        print("📅 Starting sync of all reminders...")
         
         guard await requestAccess() else {
-            print("📅 ERROR: No calendar access for sync all")
             return (0, 0)
         }
         
@@ -224,12 +195,10 @@ final class CalendarSync {
         )
         
         guard let reminders = try? context.fetch(descriptor) else {
-            print("📅 ERROR: Could not fetch reminders")
             return (0, 0)
         }
         
         let remindersWithDue = reminders.filter { $0.dueAt != nil }
-        print("📅 Found \(remindersWithDue.count) reminders to sync")
         
         var synced = 0
         var failed = 0
@@ -243,7 +212,6 @@ final class CalendarSync {
             }
         }
         
-        print("📅 Sync complete: \(synced) synced, \(failed) failed")
         return (synced, failed)
     }
     
@@ -292,7 +260,6 @@ final class CalendarSync {
         
         if !imported.isEmpty {
             try? context.save()
-            print("📅 Imported \(imported.count) events from calendar")
         }
         
         return imported

@@ -11,7 +11,7 @@ final class ReminderParser {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return .needsWhen(title: "", raw: text) }
 
-        let lower = normalizeNumberWords(cleaned.lowercased())
+        let lower = cleaned.normalizeNumberWords()
         let title = stripSchedulingPhrases(from: cleaned)
         let finalTitle = title.isEmpty ? cleaned : title
         
@@ -235,17 +235,6 @@ final class ReminderParser {
         return Calendar.current.date(from: comps)
     }
     
-    private func normalizeNumberWords(_ text: String) -> String {
-        let map: [String: String] = [
-            "one":"1","two":"2","three":"3","four":"4","five":"5","six":"6",
-            "seven":"7","eight":"8","nine":"9","ten":"10","eleven":"11","twelve":"12"
-        ]
-        var t = text.lowercased()
-        for (word, digit) in map {
-            t = t.replacingOccurrences(of: "\\b\(word)\\b", with: digit, options: .regularExpression)
-        }
-        return t
-    }
 
     private func stripSchedulingPhrases(from s: String) -> String {
         var t = s

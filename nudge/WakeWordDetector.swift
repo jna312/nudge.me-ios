@@ -33,9 +33,7 @@ final class WakeWordDetector: ObservableObject {
             try setupAudioSession()
             try startRecognition()
             isListening = true
-            print("🎙️ Wake word detection started - listening for 'Hey Nudge'")
         } catch {
-            print("🎙️ Failed to start wake word detection: \(error)")
         }
     }
     
@@ -52,7 +50,6 @@ final class WakeWordDetector: ObservableObject {
         task = nil
         
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        print("🎙️ Wake word detection stopped")
     }
     
     private func setupAudioSession() throws {
@@ -126,7 +123,6 @@ final class WakeWordDetector: ObservableObject {
         generator.notificationOccurred(.success)
         #endif
         
-        print("🎙️ Wake word detected! 'Hey Nudge' heard.")
         
         // Post notification for ContentView to handle
         NotificationCenter.default.post(name: .wakeWordDetected, object: nil)

@@ -75,7 +75,6 @@ final class SpeechTranscriber: ObservableObject {
             guard let self else { return }
             
             if let error = error {
-                print("🎤 Speech recognition error: \(error.localizedDescription)")
                 return
             }
             

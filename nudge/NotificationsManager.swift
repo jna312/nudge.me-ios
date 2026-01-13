@@ -22,7 +22,6 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        print("🔔 Notification arriving in foreground...")
         
         // Notify to pause speech recognizer
         await MainActor.run {
@@ -41,7 +40,6 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     func requestPermission() async {
         let granted = (try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-        print("🔔 Notifications permission granted =", granted)
     }
 
     func registerCategories() {
@@ -74,7 +72,6 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         let actionID = response.actionIdentifier
         let categoryID = response.notification.request.content.categoryIdentifier
         
-        print("🔔 Action tapped:", actionID, "Category:", categoryID)
         
         // Handle closeout notification tap (either the notification itself or the Open button)
         if categoryID == closeoutCategoryIdentifier {
@@ -123,7 +120,6 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         let mainReq = UNNotificationRequest(identifier: mainNotificationID, content: mainContent, trigger: mainTrigger)
         try? await center.add(mainReq)
         
-        print("🔔 Scheduled notification for '\(reminder.title)' at \(alertAt)")
         
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
@@ -143,7 +139,6 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             let earlyReq = UNNotificationRequest(identifier: earlyNotificationID, content: earlyContent, trigger: earlyTrigger)
             try? await center.add(earlyReq)
             
-            print("🔔 Scheduled early notification for '\(reminder.title)' at \(earlyAlertAt)")
         }
     }
     
@@ -168,6 +163,5 @@ extension NotificationsManager {
         let earlyID = "\(reminder.id.uuidString)-early-alert"
         
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [mainID, earlyID])
-        print("🔔 Removed all notifications for \(reminder.title)")
     }
 }
