@@ -59,6 +59,8 @@ struct SettingsView: View {
                                         syncMessage += " (\(result.failed) failed)"
                                     }
                                     showingSyncAlert = true
+                                    // Start auto-sync
+                                    CalendarSync.shared.startAutoSync(frequency: settings.calendarSyncFrequency, context: modelContext)
                                 } else {
                                     syncMessage = "Calendar access denied. Please enable in Settings > Privacy > Calendars."
                                     showingSyncAlert = true
@@ -66,6 +68,9 @@ struct SettingsView: View {
                                 }
                                 isSyncing = false
                             }
+                        } else {
+                            // Stop auto-sync when disabled
+                            CalendarSync.shared.stopAutoSync()
                         }
                     }
                 
@@ -75,7 +80,17 @@ struct SettingsView: View {
                         Text("Syncing...").font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if settings.calendarSyncEnabled {
-                    Text("Reminders appear in a \"Nudge Reminders\" calendar in Apple Calendar.")
+                    Picker("Auto-sync frequency", selection: $settings.calendarSyncFrequency) {
+                        Text("Every 15 minutes").tag(15)
+                        Text("Every 30 minutes").tag(30)
+                        Text("Every hour").tag(60)
+                    }
+                    .onChange(of: settings.calendarSyncFrequency) { _, newFrequency in
+                        // Restart auto-sync with new frequency
+                        CalendarSync.shared.startAutoSync(frequency: newFrequency, context: modelContext)
+                    }
+                    
+                    Text("Reminders sync to a \"Nudge Reminders\" calendar in Apple Calendar.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     

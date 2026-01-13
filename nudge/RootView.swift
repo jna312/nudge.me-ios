@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 enum AppTab: Int {
     case speak = 0
@@ -6,6 +7,7 @@ enum AppTab: Int {
 }
 
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject var settings: AppSettings
     @StateObject private var notificationsManager = NotificationsManager.shared
     @State private var selectedTab: AppTab = .speak
@@ -49,6 +51,12 @@ struct RootView: View {
             if shouldNavigate {
                 selectedTab = .reminders
                 notificationsManager.shouldNavigateToReminders = false
+            }
+        }
+        .task {
+            // Start calendar auto-sync if enabled
+            if settings.calendarSyncEnabled {
+                CalendarSync.shared.startAutoSync(frequency: settings.calendarSyncFrequency, context: modelContext)
             }
         }
     }

@@ -15,6 +15,9 @@ final class AppSettings: ObservableObject {
     // Calendar sync
     @AppStorage("calendarSyncEnabled") var calendarSyncEnabled: Bool = false
     
+    // Calendar sync frequency in minutes (15, 30, 60)
+    @AppStorage("calendarSyncFrequency") var calendarSyncFrequency: Int = 30
+    
     // Security
     
     // Default early alert (minutes before due time, 0 = none)

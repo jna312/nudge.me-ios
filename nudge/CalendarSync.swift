@@ -11,8 +11,38 @@ final class CalendarSync {
     
     private var eventStore = EKEventStore()
     private var nudgeCalendar: EKCalendar?
+    private var syncTimer: Timer?
+    private var modelContext: ModelContext?
     
     private init() {}
+    
+    // MARK: - Auto-Sync Timer
+    
+    /// Start automatic sync with the specified frequency (in minutes)
+    func startAutoSync(frequency: Int, context: ModelContext) {
+        stopAutoSync()
+        modelContext = context
+        
+        let interval = TimeInterval(frequency * 60)
+        syncTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self = self, let ctx = self.modelContext else { return }
+            Task {
+                await self.syncAllReminders(from: ctx)
+            }
+        }
+    }
+    
+    /// Stop automatic sync
+    func stopAutoSync() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+        modelContext = nil
+    }
+    
+    /// Check if auto-sync is running
+    var isAutoSyncRunning: Bool {
+        syncTimer != nil
+    }
     
     // MARK: - Permission
     
