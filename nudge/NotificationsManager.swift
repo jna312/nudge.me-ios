@@ -131,7 +131,14 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         try? await center.add(mainReq)
         
         print("🔔 Scheduled main notification for '\(reminder.title)' at \(alertAt)")
-        print("🔔 Sound type: \(type(of: notificationSound)), sound: \(notificationSound)")
+        print("🔔 Selected ringtone: '\(selectedRingtone)'")
+        
+        // Debug: list available sound files
+        if let resourcePath = Bundle.main.resourcePath {
+            let files = (try? FileManager.default.contentsOfDirectory(atPath: resourcePath)) ?? []
+            let cafFiles = files.filter { $0.hasSuffix(".caf") }
+            print("🔔 Available .caf files in bundle: \(cafFiles)")
+        }
         
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
@@ -165,19 +172,26 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     
     /// Get notification sound for the selected ringtone
     private func getNotificationSound(for ringtone: String) -> UNNotificationSound {
-        // Use system default if selected
-        if ringtone == "default" {
+        // Use system default if selected or if ringtone is empty
+        if ringtone == "default" || ringtone.isEmpty {
             print("🔔 Using system default sound")
             return .default
         }
         
-        // Sound files are in bundle root
-        if let url = Bundle.main.url(forResource: ringtone, withExtension: "caf") {
-            print("🔔 Using custom sound: \(ringtone).caf at \(url)")
-            return UNNotificationSound(named: UNNotificationSoundName("\(ringtone).caf"))
+        // Check if sound file exists in bundle
+        guard let url = Bundle.main.url(forResource: ringtone, withExtension: "caf") else {
+            print("🔔 Sound file '\(ringtone).caf' not found in bundle, using default")
+            return .default
         }
-        print("🔔 Sound file not found for \(ringtone), using default")
-        return .default
+        
+        // Verify file exists at URL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            print("🔔 Sound file exists in bundle but not on disk: \(url.path), using default")
+            return .default
+        }
+        
+        print("🔔 Using custom sound: \(ringtone).caf")
+        return UNNotificationSound(named: UNNotificationSoundName("\(ringtone).caf"))
     }
 }
 
