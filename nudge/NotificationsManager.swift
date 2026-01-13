@@ -8,6 +8,10 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     let reminderCategoryIdentifier = "REMINDER_CATEGORY"
     let closeoutCategoryIdentifier = "CLOSEOUT_CATEGORY"
     
+    // Custom alarm sound (15 seconds)
+    private let alarmSound = UNNotificationSound(named: UNNotificationSoundName("reminder_alarm.caf"))
+    private let alarmDuration: TimeInterval = 15.0
+    
     // Callback to pause/resume speech recognizer
     var onNotificationWillPresent: (() -> Void)?
     var onNotificationSoundComplete: (() -> Void)?
@@ -28,12 +32,16 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             onNotificationWillPresent?()
         }
         
-        // Resume mic after sound plays (default sound is ~1 second)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        // Check if this is an early alert (shorter sound) or main reminder (15s alarm)
+        let isEarlyAlert = notification.request.content.userInfo["isEarlyAlert"] as? Bool ?? false
+        let soundDuration = isEarlyAlert ? 1.5 : alarmDuration + 0.5
+        
+        // Resume mic after sound plays
+        DispatchQueue.main.asyncAfter(deadline: .now() + soundDuration) {
             self.onNotificationSoundComplete?()
         }
         
-        // Let iOS play the default sound
+        // Let iOS play the sound
         return [.banner, .badge, .list, .sound]
     }
     
@@ -106,7 +114,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         let mainContent = UNMutableNotificationContent()
         mainContent.title = "Reminder"
         mainContent.body = reminder.title
-        mainContent.sound = .default
+        mainContent.sound = alarmSound  // 15-second classic alarm
         mainContent.userInfo = ["reminderID": reminder.id.uuidString]
         mainContent.categoryIdentifier = reminderCategoryIdentifier
         
