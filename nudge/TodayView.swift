@@ -115,11 +115,25 @@ struct RemindersView: View {
                                             .tint(.orange)
                                             
                                             Button {
+                                                snoozeReminder(reminder, minutes: 30)
+                                            } label: {
+                                                Label("30 min", systemImage: "clock.arrow.circlepath")
+                                            }
+                                            .tint(.yellow)
+                                            
+                                            Button {
                                                 snoozeReminder(reminder, minutes: 60)
                                             } label: {
                                                 Label("1 hour", systemImage: "clock")
                                             }
                                             .tint(.blue)
+                                            
+                                            Button {
+                                                snoozeReminder(reminder, minutes: 1440) // 24 hours
+                                            } label: {
+                                                Label("1 day", systemImage: "calendar")
+                                            }
+                                            .tint(.purple)
                                         }
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                             Button(role: .destructive) {
@@ -461,14 +475,24 @@ struct EditReminderView: View {
                         .foregroundStyle(.secondary)
                 }
                 
-                Section {
-                    Button("Snooze 1 Hour") {
-                        dueDate = Date().addingTimeInterval(3600)
-                        let generator = UIImpactFeedbackGenerator(style: .light)
-                        generator.impactOccurred()
+                Section("Quick Snooze") {
+                    HStack(spacing: 12) {
+                        SnoozeButton(title: "10 min", color: .orange) {
+                            dueDate = Date().addingTimeInterval(600)
+                        }
+                        SnoozeButton(title: "30 min", color: .yellow) {
+                            dueDate = Date().addingTimeInterval(1800)
+                        }
+                        SnoozeButton(title: "1 hour", color: .blue) {
+                            dueDate = Date().addingTimeInterval(3600)
+                        }
+                        SnoozeButton(title: "1 day", color: .purple) {
+                            dueDate = Date().addingTimeInterval(86400)
+                        }
                     }
+                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                     
-                    Button("Snooze to Tomorrow 9 AM") {
+                    Button("Tomorrow at 9 AM") {
                         let calendar = Calendar.current
                         let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
                         dueDate = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
@@ -548,5 +572,28 @@ struct EmptyStateView: View {
             systemImage: state.systemImage,
             description: Text(state.description)
         )
+    }
+}
+
+struct SnoozeButton: View {
+    let title: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            action()
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+        }) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(color, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
