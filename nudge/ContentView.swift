@@ -293,10 +293,26 @@ struct ContentView: View {
         
         isHoldingMic = true
         transcriber.transcript = ""
-        try? transcriber.start()
         
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+        do {
+            try transcriber.start()
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+        } catch {
+            // Failed to start - reset state
+            print("🎤 Failed to start recording: \(error.localizedDescription)")
+            isHoldingMic = false
+            transcriber.reset()
+            
+            // Resume wake word if enabled
+            if settings.wakeWordEnabled {
+                wakeWordDetector.startListening()
+            }
+            
+            // Haptic feedback for error
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.error)
+        }
     }
     
     private func stopRecording() {
@@ -351,12 +367,23 @@ struct ContentView: View {
         isHoldingMic = true
         isAutoListening = true
         transcriber.transcript = ""
-        try? transcriber.start()
         
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
-        
-        resetSilenceTimer()
+        do {
+            try transcriber.start()
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            resetSilenceTimer()
+        } catch {
+            // Failed to start - reset state
+            print("🎤 Failed to start auto-listening: \(error.localizedDescription)")
+            isHoldingMic = false
+            isAutoListening = false
+            transcriber.reset()
+            
+            if settings.wakeWordEnabled {
+                wakeWordDetector.startListening()
+            }
+        }
         
         // Safety timeout after 8 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) {

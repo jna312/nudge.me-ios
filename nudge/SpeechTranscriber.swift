@@ -42,6 +42,9 @@ final class SpeechTranscriber: ObservableObject {
     }
 
     func start() throws {
+        // Reset any stuck state first
+        reset()
+        
         transcript = ""
         isRecording = true
 
@@ -63,14 +66,36 @@ final class SpeechTranscriber: ObservableObject {
         audioEngine.prepare()
         try audioEngine.start()
 
-        guard let request, let recognizer = recognizer else { return }
+        guard let request, let recognizer = recognizer else {
+            isRecording = false
+            return
+        }
 
-        task = recognizer.recognitionTask(with: request) { [weak self] result, _ in
-            guard let self, let result else { return }
+        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+            
+            if let error = error {
+                print("🎤 Speech recognition error: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let result else { return }
             Task { @MainActor in
                 self.transcript = result.bestTranscription.formattedString
             }
         }
+    }
+    
+    /// Reset the transcriber to a clean state (call if it gets stuck)
+    func reset() {
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        request?.endAudio()
+        task?.cancel()
+        request = nil
+        task = nil
+        isRecording = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     func stop() {
