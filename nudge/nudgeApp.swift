@@ -4,8 +4,6 @@ import SwiftUI
 @main
 struct NudgeApp: App {
     @StateObject private var settings = AppSettings()
-    @StateObject private var biometricAuth = BiometricAuth.shared
-    @Environment(\.scenePhase) private var scenePhase
     
     let modelContainer: ModelContainer
     
@@ -30,19 +28,10 @@ struct NudgeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if !settings.didCompleteOnboarding {
-                    OnboardingView(settings: settings)
-                } else if settings.biometricLockEnabled && !biometricAuth.isUnlocked {
-                    LockScreenView()
-                } else {
-                    RootView(settings: settings)
-                }
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .background && settings.biometricLockEnabled {
-                    biometricAuth.lock()
-                }
+            if !settings.didCompleteOnboarding {
+                OnboardingView(settings: settings)
+            } else {
+                RootView(settings: settings)
             }
         }
         .modelContainer(modelContainer)

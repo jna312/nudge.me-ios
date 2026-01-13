@@ -38,8 +38,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     }
     
     func requestPermission() async {
-        let granted = (try? await UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        _ = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
     func registerCategories() {

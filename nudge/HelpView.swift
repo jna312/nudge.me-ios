@@ -179,12 +179,6 @@ struct HelpView: View {
                 )
                 
                 FeatureRow(
-                    icon: "faceid",
-                    title: "Face ID / Touch ID",
-                    description: "Lock Nudge with biometrics for privacy. Enable in Settings."
-                )
-                
-                FeatureRow(
                     icon: "apps.iphone",
                     title: "Siri Shortcuts",
                     description: "Say \"Hey Siri, add a nudge\" to create reminders from anywhere."

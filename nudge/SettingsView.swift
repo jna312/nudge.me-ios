@@ -20,25 +20,6 @@ struct SettingsView: View {
                 }
             }
             
-            Section {
-                Toggle("Require \(BiometricAuth.shared.biometricType)", isOn: $settings.biometricLockEnabled)
-                    .onChange(of: settings.biometricLockEnabled) { _, enabled in
-                        if enabled {
-                            Task {
-                                let success = await BiometricAuth.shared.authenticate()
-                                if !success {
-                                    settings.biometricLockEnabled = false
-                                }
-                            }
-                        }
-                    }
-                Text("Require \(BiometricAuth.shared.biometricType) to open Nudge.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Security")
-            }
-            
             Section("Daily closeout") {
                 DatePicker(
                     "Closeout time",

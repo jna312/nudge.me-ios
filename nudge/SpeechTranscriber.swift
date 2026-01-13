@@ -74,7 +74,7 @@ final class SpeechTranscriber: ObservableObject {
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             
-            if let error = error {
+            if error != nil {
                 return
             }
             
