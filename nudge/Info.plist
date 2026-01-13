@@ -8,5 +8,14 @@
     <string>Nudge uses the microphone to capture your voice reminders.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Nudge uses speech recognition to convert your voice into reminder text.</string>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    </array>
 </dict>
 </plist>
