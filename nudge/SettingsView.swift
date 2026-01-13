@@ -129,38 +129,6 @@ struct SettingsView: View {
                 Text("Early Alerts")
             }
             
-            Section {
-                NavigationLink {
-                    RingtonePickerView(selectedRingtone: $settings.selectedRingtone)
-                } label: {
-                    HStack {
-                        Text("Reminder Sound")
-                        Spacer()
-                        Text(getRingtoneName(settings.selectedRingtone))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Toggle("Alarm Mode", isOn: $settings.useAlarmMode)
-                    .onChange(of: settings.useAlarmMode) { _, enabled in
-                        if enabled {
-                            Task {
-                                await NotificationsManager.shared.requestAlarmKitPermission()
-                            }
-                        }
-                    }
-                
-                if settings.useAlarmMode {
-                    AlarmModeStatusView()
-                } else {
-                    Text("Sound plays once for up to 30 seconds.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Sound")
-            }
-            
             Section("Writing style") {
                 Picker("Reminder text", selection: $settings.writingStyle) {
                     Text("Sentence Case").tag("sentence")
@@ -235,54 +203,6 @@ struct SettingsView: View {
         }
     }
     
-    private func getRingtoneName(_ id: String) -> String {
-        if let ringtone = RingtoneManager.ringtone(for: id) {
-            return ringtone.displayName
-        }
-        return "Standard"
-    }
-}
-
-/// Shows AlarmKit status and capabilities
-struct AlarmModeStatusView: View {
-    @StateObject private var alarmManager = AlarmKitManager.shared
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if alarmManager.isAlarmKitAvailable {
-                if alarmManager.isAuthorized {
-                    Label("Alarm Mode Active", systemImage: "checkmark.circle.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.green)
-                    Text("Reminders will ring until you dismiss them, even on lock screen and silent mode.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("Permission Required", systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                    Text("Enable alarm permissions in Settings to use this feature.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    
-                    Button("Open Settings") {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                    .font(.footnote)
-                }
-            } else {
-                Label("Requires iOS 26+", systemImage: "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Text("Alarm Mode requires iOS 26 or later. Standard notifications will play sound for up to 30 seconds.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 2)
-    }
 }
 
 struct SiriShortcutsInfoView: View {

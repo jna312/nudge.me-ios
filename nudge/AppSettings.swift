@@ -20,10 +20,4 @@ final class AppSettings: ObservableObject {
     
     // Default early alert (minutes before due time, 0 = none)
     @AppStorage("defaultEarlyAlertMinutes") var defaultEarlyAlertMinutes: Int = 0
-    
-    // Ringtone selection
-    @AppStorage("selectedRingtone") var selectedRingtone: String = "standard"
-    
-    // Alarm mode - uses AlarmKit on iOS 26+ for persistent alarms that ring until dismissed
-    @AppStorage("useAlarmMode") var useAlarmMode: Bool = true
 }
