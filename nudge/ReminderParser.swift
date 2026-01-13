@@ -208,8 +208,8 @@ final class ReminderParser {
             if ampm == "pm", hour < 12 { hour += 12 }
             if ampm == "am", hour == 12 { hour = 0 }
         } else if hourRaw >= 1 && hourRaw <= 12 {
-            // No AM/PM specified - use smart inference
-            hour = inferAmPm(hour: hourRaw)
+            // No AM/PM specified for ambiguous hour (1-12) - return nil to prompt user
+            return nil
         }
         
         // If no day specified and time already passed -> tomorrow
@@ -224,32 +224,6 @@ final class ReminderParser {
         }
         
         return setTime(on: baseDate, hour: hour, minute: minute)
-    }
-    
-    /// Infer AM/PM when not specified, based on current time and common sense
-    private func inferAmPm(hour: Int) -> Int {
-        let currentHour = Calendar.current.component(.hour, from: Date())
-        
-        // If it's currently afternoon/evening (12 PM - 11 PM)
-        if currentHour >= 12 {
-            // Hours 1-11 are likely PM
-            if hour >= 1 && hour <= 11 {
-                return hour + 12
-            }
-            return hour // 12 stays as noon
-        }
-        
-        // If it's currently morning (before noon)
-        if currentHour < 12 {
-            // If current time is late morning (10-11) and hour is small (1-5), likely PM
-            if hour >= 1 && hour <= 5 && currentHour >= 10 {
-                return hour + 12
-            }
-            // Default to AM
-            return hour == 12 ? 0 : hour
-        }
-        
-        return hour
     }
     
     // MARK: - Helpers
