@@ -287,7 +287,11 @@ struct CalendarConflictDetector {
         let predicate = eventStore.predicateForEvents(withStart: startDate, end: endDate, calendars: nil)
         let events = eventStore.events(matching: predicate)
         
-        return events.map { $0.title ?? "Event" }
+        
+        // Filter out all-day events - they don't have specific times so shouldn't conflict
+        let timedEvents = events.filter { !$0.isAllDay }
+        
+        return timedEvents.map { $0.title ?? "Event" }
     }
 }
 
