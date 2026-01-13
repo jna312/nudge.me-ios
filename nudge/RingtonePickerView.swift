@@ -7,27 +7,45 @@ struct RingtonePickerView: View {
     
     var body: some View {
         List {
-            Section {
-                ForEach(RingtoneManager.Ringtone.allCases) { ringtone in
-                    RingtoneRow(
-                        ringtone: ringtone,
-                        isSelected: selectedRingtone == ringtone.rawValue,
-                        isPlaying: ringtoneManager.currentlyPlaying == ringtone
-                    ) {
-                        ringtoneManager.preview(ringtone)
-                    } onSelect: {
-                        selectedRingtone = ringtone.rawValue
-                        ringtoneManager.stop()
+            ForEach(RingtoneManager.ringtonesByCategory, id: \.category) { group in
+                Section {
+                    ForEach(group.ringtones) { ringtone in
+                        RingtoneRow(
+                            ringtone: ringtone,
+                            isSelected: selectedRingtone == ringtone.id,
+                            isPlaying: ringtoneManager.currentlyPlaying?.id == ringtone.id
+                        ) {
+                            ringtoneManager.preview(ringtone)
+                        } onSelect: {
+                            selectedRingtone = ringtone.id
+                            ringtoneManager.stop()
+                        }
+                    }
+                } header: {
+                    Text(group.category.rawValue)
+                } footer: {
+                    if group.category == .system {
+                        Text("Uses your device's notification sound setting")
+                    } else if group.category == .appSounds {
+                        Text("Original Nudge notification sounds")
                     }
                 }
-            } header: {
-                Text("Tap to preview, select to set")
-            } footer: {
-                Text("This sound will play when reminder notifications are delivered, including on the lock screen.")
             }
         }
         .navigationTitle("Reminder Sound")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if ringtoneManager.isPlaying {
+                    Button {
+                        ringtoneManager.stop()
+                    } label: {
+                        Image(systemName: "stop.fill")
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+        }
         .onDisappear {
             ringtoneManager.stop()
         }
@@ -43,30 +61,36 @@ struct RingtoneRow: View {
     
     var body: some View {
         HStack {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? .blue : .secondary)
-                .font(.title2)
-                .onTapGesture {
-                    onSelect()
-                }
+            Button {
+                onSelect()
+            } label: {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .font(.title2)
+            }
+            .buttonStyle(.plain)
             
             Text(ringtone.displayName)
                 .padding(.leading, 8)
+                .foregroundStyle(.primary)
             
             Spacer()
             
             Button {
                 onPreview()
             } label: {
-                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle")
                     .font(.title2)
                     .foregroundStyle(isPlaying ? .red : .blue)
             }
             .buttonStyle(.plain)
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            onPreview()
-        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        RingtonePickerView(selectedRingtone: .constant("standard"))
     }
 }

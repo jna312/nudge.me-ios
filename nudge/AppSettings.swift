@@ -23,4 +23,7 @@ final class AppSettings: ObservableObject {
     
     // Ringtone selection
     @AppStorage("selectedRingtone") var selectedRingtone: String = "standard"
+    
+    // Alarm mode - uses AlarmKit on iOS 26+ for persistent alarms that ring until dismissed
+    @AppStorage("useAlarmMode") var useAlarmMode: Bool = true
 }

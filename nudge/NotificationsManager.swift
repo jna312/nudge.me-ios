@@ -17,6 +17,9 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     // Published property to trigger navigation to Reminders tab
     @Published var shouldNavigateToReminders = false
     
+    // AlarmKit manager for iOS 26+
+    private let alarmKitManager = AlarmKitManager.shared
+    
     override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
@@ -41,9 +44,24 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     }
     
     func requestPermission() async {
+        // Request standard notification permission
         let granted = (try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         print("🔔 Notifications permission granted =", granted)
+        
+        // Also request AlarmKit permission if available
+        await requestAlarmKitPermission()
+    }
+    
+    /// Request AlarmKit authorization (iOS 26+)
+    func requestAlarmKitPermission() async {
+        let granted = await alarmKitManager.requestAuthorization()
+        print("⏰ AlarmKit permission: \(granted ? "granted" : "denied or unavailable")")
+    }
+    
+    /// Check if AlarmKit is available and authorized
+    var isAlarmKitReady: Bool {
+        alarmKitManager.isAlarmKitAvailable && alarmKitManager.isAuthorized
     }
 
     func registerCategories() {
@@ -99,7 +117,28 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         }
     }
     
+    /// Schedule a reminder - uses AlarmKit if available and enabled, otherwise standard notifications
     func schedule(reminder: ReminderItem) async {
+        let useAlarmMode = UserDefaults.standard.bool(forKey: "useAlarmMode")
+        let selectedRingtone = UserDefaults.standard.string(forKey: "selectedRingtone") ?? "standard"
+        
+        // Try AlarmKit first if enabled and available (iOS 26+)
+        if useAlarmMode && isAlarmKitReady {
+            let alarmScheduled = await alarmKitManager.scheduleAlarm(for: reminder, soundName: selectedRingtone)
+            if alarmScheduled {
+                print("⏰ Using AlarmKit for reminder: \(reminder.title)")
+                // Also schedule a backup notification (quieter, in case alarm is dismissed)
+                await scheduleBackupNotification(reminder: reminder, soundName: selectedRingtone)
+                return
+            }
+        }
+        
+        // Fall back to standard notification
+        await scheduleStandardNotification(reminder: reminder, soundName: selectedRingtone)
+    }
+    
+    /// Schedule a standard notification (for older iOS or when AlarmKit is disabled)
+    private func scheduleStandardNotification(reminder: ReminderItem, soundName: String) async {
         let center = UNUserNotificationCenter.current()
         let mainNotificationID = "\(reminder.id.uuidString)-alert"
         let earlyNotificationID = "\(reminder.id.uuidString)-early-alert"
@@ -109,9 +148,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
 
         guard let alertAt = reminder.alertAt else { return }
 
-        // Get selected ringtone
-        let selectedRingtone = UserDefaults.standard.string(forKey: "selectedRingtone") ?? "standard"
-        let notificationSound = getNotificationSound(for: selectedRingtone)
+        let notificationSound = getNotificationSound(for: soundName)
         
         // Schedule main alert at due time
         let mainContent = UNMutableNotificationContent()
@@ -130,15 +167,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         let mainReq = UNNotificationRequest(identifier: mainNotificationID, content: mainContent, trigger: mainTrigger)
         try? await center.add(mainReq)
         
-        print("🔔 Scheduled main notification for '\(reminder.title)' at \(alertAt)")
-        print("🔔 Selected ringtone: '\(selectedRingtone)'")
-        
-        // Debug: list available sound files
-        if let resourcePath = Bundle.main.resourcePath {
-            let files = (try? FileManager.default.contentsOfDirectory(atPath: resourcePath)) ?? []
-            let cafFiles = files.filter { $0.hasSuffix(".caf") }
-            print("🔔 Available .caf files in bundle: \(cafFiles)")
-        }
+        print("🔔 Scheduled standard notification for '\(reminder.title)' at \(alertAt)")
         
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
@@ -160,6 +189,27 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             
             print("🔔 Scheduled early notification for '\(reminder.title)' at \(earlyAlertAt)")
         }
+    }
+    
+    /// Schedule a quiet backup notification when using AlarmKit
+    /// This shows in notification center even after alarm is dismissed
+    private func scheduleBackupNotification(reminder: ReminderItem, soundName: String) async {
+        guard let alertAt = reminder.alertAt else { return }
+        
+        let center = UNUserNotificationCenter.current()
+        let backupID = "\(reminder.id.uuidString)-backup"
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Reminder"
+        content.body = reminder.title
+        content.sound = nil  // Silent - alarm handles the sound
+        content.userInfo = ["reminderID": reminder.id.uuidString, "isBackup": true]
+        content.categoryIdentifier = reminderCategoryIdentifier
+        
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let req = UNNotificationRequest(identifier: backupID, content: content, trigger: trigger)
+        try? await center.add(req)
     }
     
     private func formatMinutes(_ minutes: Int) -> String {
@@ -199,8 +249,15 @@ extension NotificationsManager {
     func removeNotifications(for reminder: ReminderItem) {
         let mainID = "\(reminder.id.uuidString)-alert"
         let earlyID = "\(reminder.id.uuidString)-early-alert"
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [mainID, earlyID])
+        let backupID = "\(reminder.id.uuidString)-backup"
+        
+        // Remove standard notifications
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [mainID, earlyID, backupID])
         print("🔔 Removed all notifications for \(reminder.title)")
+        
+        // Also cancel AlarmKit alarm if applicable
+        Task {
+            await alarmKitManager.cancelAlarm(for: reminder)
+        }
     }
 }
-
