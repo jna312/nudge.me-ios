@@ -50,6 +50,9 @@ final class CaptureFlow: ObservableObject {
         let t = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
         lastHeard = t
+        
+        // Reset needsFollowUp so onChange can detect when it's set to true again
+        needsFollowUp = false
 
         // First, check if this is a command (edit/cancel) vs new reminder
         let command = CommandDetector.detect(t)
