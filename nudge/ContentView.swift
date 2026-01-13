@@ -269,10 +269,14 @@ struct ContentView: View {
         
         // Auto-start recording after wake word
         wakeWordTriggered = true
+        isAutoListening = true  // Enable silence detection
         startRecording()
         
-        // Auto-stop after 10 seconds of recording (if user doesn't manually stop)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+        // Start silence timer - will auto-stop after 2 seconds of silence
+        resetSilenceTimer()
+        
+        // Safety timeout after 15 seconds (if silence detection fails)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
             if isHoldingMic && wakeWordTriggered {
                 stopRecording()
                 wakeWordTriggered = false
@@ -388,10 +392,17 @@ struct ContentView: View {
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
         
-        // Wait 1.5 seconds of silence before auto-stopping
-        silenceTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in
+        // Determine timeout based on whether user has spoken yet
+        let hasSpoken = !transcriber.transcript.isEmpty
+        let silenceTimeout: TimeInterval = hasSpoken ? 1.5 : 3.0  // Wait longer before first speech
+        
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { _ in
             DispatchQueue.main.async {
-                if self.isAutoListening && !self.transcriber.transcript.isEmpty {
+                if self.isAutoListening {
+                    // If wake word triggered and no speech, give a gentle prompt
+                    if self.wakeWordTriggered && self.transcriber.transcript.isEmpty {
+                        self.flow.prompt = "I didn't catch that. Try again?"
+                    }
                     self.stopRecording()
                 }
             }
