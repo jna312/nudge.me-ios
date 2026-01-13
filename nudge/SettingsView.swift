@@ -122,7 +122,7 @@ struct SettingsView: View {
                     Text("1 hour before").tag(60)
                 }
                 
-                Text("Get a \"Coming Up\" notification before your main reminder alert.")
+                Text("Receive a heads-up notification before each reminder. Useful for tasks that need preparation time.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } header: {
