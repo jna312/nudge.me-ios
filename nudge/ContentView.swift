@@ -417,6 +417,7 @@ struct QuickAddView: View {
     @State private var title = ""
     @State private var dueDate = Date().addingTimeInterval(3600)
     @State private var hasAlert = true
+    @State private var earlyAlertMinutes: Int = 0
     @FocusState private var isTitleFocused: Bool
     
     var body: some View {
@@ -443,6 +444,16 @@ struct QuickAddView: View {
                 
                 Section {
                     Toggle("Alert at due time", isOn: $hasAlert)
+                    
+                    if hasAlert {
+                        Picker("Early warning", selection: $earlyAlertMinutes) {
+                            Text("None").tag(0)
+                            Text("5 minutes before").tag(5)
+                            Text("15 minutes before").tag(15)
+                            Text("30 minutes before").tag(30)
+                            Text("1 hour before").tag(60)
+                        }
+                    }
                 }
             }
             .navigationTitle("Quick Add")
@@ -466,6 +477,7 @@ struct QuickAddView: View {
             }
             .onAppear {
                 isTitleFocused = true
+                earlyAlertMinutes = settings.defaultEarlyAlertMinutes
                 
                 // Show quick time button tip
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -488,7 +500,8 @@ struct QuickAddView: View {
         let item = ReminderItem(
             title: styledTitle,
             dueAt: dueDate,
-            alertAt: hasAlert ? dueDate : nil
+            alertAt: hasAlert ? dueDate : nil,
+            earlyAlertMinutes: earlyAlertMinutes > 0 ? earlyAlertMinutes : nil
         )
         
         modelContext.insert(item)
