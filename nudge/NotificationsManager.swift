@@ -128,8 +128,8 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
             let earlyContent = UNMutableNotificationContent()
-            earlyContent.title = "Coming Up"
-            earlyContent.body = "\(reminder.title) in \(formatMinutes(reminder.earlyAlertMinutes ?? 15))"
+            earlyContent.title = "⏰ \(formatMinutes(reminder.earlyAlertMinutes ?? 15)) warning"
+            earlyContent.body = "\(reminder.title) at \(formatTime(alertAt))"
             earlyContent.sound = .default
             earlyContent.userInfo = ["reminderID": reminder.id.uuidString, "isEarlyAlert": true]
             earlyContent.categoryIdentifier = reminderCategoryIdentifier
@@ -153,6 +153,12 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             return hours == 1 ? "1 hour" : "\(hours) hours"
         }
         return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
