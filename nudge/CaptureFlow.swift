@@ -29,10 +29,18 @@ final class CaptureFlow: ObservableObject {
     @Published var conflictWarning: String? = nil
     @Published var timeSuggestions: [Date] = []
     @Published var needsFollowUp: Bool = false  // Signals ContentView to auto-listen
+    
+    // Track AM/PM context for consecutive reminder creation
+    private var lastUsedPeriod: TimePeriod? = nil
+    private var lastReminderTime: Date? = nil
+    
+    enum TimePeriod {
+        case am, pm
+    }
 
     private let parser = ReminderParser()
     
-    func reset() {
+    func reset(preserveTimeContext: Bool = true) {
         step = .idle
         prompt = String(localized: "What do you want me to remind you about?")
         lastHeard = ""
@@ -40,6 +48,21 @@ final class CaptureFlow: ObservableObject {
         timeSuggestions = []
         needsFollowUp = false
         pendingEarlyAlertMinutes = nil
+        
+        // Preserve time context for consecutive reminders, but expire after 5 minutes
+        if !preserveTimeContext {
+            lastUsedPeriod = nil
+            lastReminderTime = nil
+        } else if let lastTime = lastReminderTime,
+                  Date().timeIntervalSince(lastTime) > 300 { // 5 minutes
+            lastUsedPeriod = nil
+            lastReminderTime = nil
+        }
+    }
+    
+    /// Fully reset including time context (e.g., when app goes to background)
+    func fullReset() {
+        reset(preserveTimeContext: false)
     }
 
     func handleTranscript(
@@ -413,7 +436,7 @@ final class CaptureFlow: ObservableObject {
             }
         }
         
-        // Pattern without AM/PM (only use if no am/pm in input)
+        // Pattern without AM/PM - use context to infer
         if !lower.contains("am") && !lower.contains("pm") {
             let simplePattern = #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?"#
             if let re = try? NSRegularExpression(pattern: simplePattern, options: [.caseInsensitive]) {
@@ -421,15 +444,21 @@ final class CaptureFlow: ObservableObject {
                 if let m = re.firstMatch(in: lower, range: range),
                    let hrR = Range(m.range(at: 1), in: lower) {
                     
-                    let hour = Int(lower[hrR]) ?? 0
+                    var hour = Int(lower[hrR]) ?? 0
                     var minute = 0
                     
                     if let minR = Range(m.range(at: 2), in: lower) {
                         minute = Int(lower[minR]) ?? 0
                     }
                     
+                    // Apply AM/PM inference for ambiguous hours (1-12)
+                    if hour >= 1 && hour <= 12 {
+                        hour = inferHourWithContext(hour)
+                        print("🕐 Inferred hour with context: \(hour)")
+                    }
+                    
                     if hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 {
-                        print("🕐 Parsed simple time: \(hour):\(String(format: "%02d", minute))")
+                        print("🕐 Parsed time with context: \(hour):\(String(format: "%02d", minute))")
                         return (hour, minute)
                     }
                 }
@@ -438,6 +467,63 @@ final class CaptureFlow: ObservableObject {
         
         print("🕐 Failed to parse time from: '\(lower)'")
         return nil
+    }
+    
+    /// Infer whether an ambiguous hour (1-12) should be AM or PM
+    /// Uses: 1) Recent context from consecutive reminders, 2) Current time of day, 3) Common sense defaults
+    private func inferHourWithContext(_ hour: Int) -> Int {
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        
+        // Priority 1: Use recent context if available (within 5 minutes)
+        if let lastTime = lastReminderTime,
+           Date().timeIntervalSince(lastTime) < 300,
+           let period = lastUsedPeriod {
+            print("🕐 Using recent context: \(period)")
+            switch period {
+            case .pm:
+                return hour < 12 ? hour + 12 : hour
+            case .am:
+                return hour == 12 ? 0 : hour
+            }
+        }
+        
+        // Priority 2: Smart inference based on current time and the hour mentioned
+        // If user says "3" and it's currently 2 PM, they probably mean 3 PM
+        // If user says "9" and it's currently 8 AM, they probably mean 9 AM
+        
+        // If it's currently afternoon/evening (12 PM - 11 PM)
+        if currentHour >= 12 {
+            // Hours 1-11 are likely PM if we're in PM territory
+            if hour >= 1 && hour <= 11 {
+                // But if the PM time has already passed today, might mean tomorrow AM
+                let pmHour = hour + 12
+                if pmHour <= currentHour && hour >= 6 {
+                    // e.g., it's 5 PM and user says "3" - they might mean 3 PM (passed) or tomorrow 3 PM
+                    // For convenience, assume they mean PM today/tomorrow
+                    return pmHour
+                }
+                return pmHour
+            }
+            return hour // hour 12 stays as 12 (noon)
+        }
+        
+        // If it's currently morning (12 AM - 11 AM)
+        if currentHour < 12 {
+            // Common sense: 
+            // - Hours 1-6 early morning are usually AM
+            // - Hours 7-11 morning/late morning are usually AM  
+            // - But if current time is close to noon and hour is small (1-5), might be PM
+            
+            if hour >= 1 && hour <= 5 && currentHour >= 10 {
+                // It's late morning (10-11 AM) and user says 1-5, probably means PM
+                return hour + 12
+            }
+            
+            // Default to AM for morning context
+            return hour == 12 ? 0 : hour
+        }
+        
+        return hour
     }
     
     private func combineDateAndTime(baseDate: Date, time: (hour: Int, minute: Int)) -> Date {
@@ -521,6 +607,12 @@ final class CaptureFlow: ObservableObject {
         modelContext.insert(item)
         lastSavedReminder = item
         try? modelContext.save()
+        
+        // Track the AM/PM period for context in consecutive reminders
+        let hour = Calendar.current.component(.hour, from: dueAt)
+        lastUsedPeriod = hour >= 12 ? .pm : .am
+        lastReminderTime = Date()
+        print("🕐 Saved reminder for \(hour >= 12 ? "PM" : "AM"), tracking context")
 
         await NotificationsManager.shared.schedule(reminder: item)
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
