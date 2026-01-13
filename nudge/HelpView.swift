@@ -31,7 +31,7 @@ struct HelpView: View {
                     examples: [
                         "\"Meeting at 2 PM with a 15 minute warning\"",
                         "\"Doctor at 10 AM with an early alert\"",
-                        "\"Call mom at 5, warn me 30 minutes before\""
+                        "\"Call mom at 5 PM, warn me 30 minutes before\""
                     ]
                 )
                 
@@ -69,54 +69,76 @@ struct HelpView: View {
             } header: {
                 Label("Time Formats", systemImage: "clock")
             } footer: {
-                Text("Always specify a time — Nudge will ask if you forget!")
+                Text("Always include AM or PM when saying a time — Nudge will ask if you forget.")
             }
             
-            // Features
+            // Input Methods
             Section {
                 FeatureRow(
                     icon: "hand.tap.fill",
                     title: "Hold to Speak",
-                    description: "Hold the mic button, speak your reminder, release to save."
+                    description: "Hold the mic button, speak your reminder with a time, then release to save."
                 )
                 
                 FeatureRow(
                     icon: "mic.badge.plus",
                     title: "Auto-Listen",
-                    description: "When Nudge asks a follow-up question, the mic starts automatically and stops when you finish speaking."
-                )
-                
-                FeatureRow(
-                    icon: "bell.badge",
-                    title: "Early Alerts",
-                    description: "Get a \"heads up\" notification before your reminder. Say \"with a 15 minute warning\" or set a default in Settings."
+                    description: "When Nudge asks a follow-up question (like confirming a conflict), the mic activates automatically."
                 )
                 
                 FeatureRow(
                     icon: "keyboard",
                     title: "Type Instead",
-                    description: "Tap \"Type instead\" to add reminders manually with the keyboard."
+                    description: "Tap \"Type instead\" to add reminders with the keyboard. You can also set an early warning from this screen."
+                )
+            } header: {
+                Label("Input Methods", systemImage: "rectangle.and.pencil.and.ellipsis")
+            }
+            
+            // Notifications
+            Section {
+                FeatureRow(
+                    icon: "bell.badge",
+                    title: "Early Warnings",
+                    description: "Get a heads-up notification before your reminder (e.g. \"⏰ 15 minutes warning — Call mom at 3:30 PM\")."
                 )
                 
                 FeatureRow(
-                    icon: "arrow.uturn.backward",
-                    title: "Undo",
-                    description: "Made a mistake? Tap \"Undo\" within 5 seconds to delete."
+                    icon: "bell.and.waves.left.and.right",
+                    title: "Default Early Alert",
+                    description: "Set a default warning time in Settings so every reminder gets a heads-up automatically."
                 )
                 
+                FeatureRow(
+                    icon: "moon.fill",
+                    title: "Daily Closeout",
+                    description: "At 9 PM, Nudge reminds you to review any uncompleted reminders for the day."
+                )
+            } header: {
+                Label("Notifications", systemImage: "bell.fill")
+            }
+            
+            // Managing Reminders
+            Section {
                 FeatureRow(
                     icon: "checkmark.circle",
-                    title: "Complete Reminders",
+                    title: "Complete",
                     description: "Tap the circle next to any reminder to mark it done."
                 )
                 
                 FeatureRow(
                     icon: "hand.draw",
                     title: "Swipe Actions",
-                    description: "Swipe left to delete, swipe right to snooze."
+                    description: "Swipe left to delete, swipe right to snooze for 10 minutes."
+                )
+                
+                FeatureRow(
+                    icon: "arrow.uturn.backward",
+                    title: "Undo",
+                    description: "Made a mistake? Tap \"Undo\" within 5 seconds after creating a reminder."
                 )
             } header: {
-                Label("Features", systemImage: "star.fill")
+                Label("Managing Reminders", systemImage: "checklist")
             }
             
             // Smart Features
@@ -124,19 +146,19 @@ struct HelpView: View {
                 FeatureRow(
                     icon: "doc.on.doc",
                     title: "Duplicate Detection",
-                    description: "Nudge warns you if you're creating a similar reminder."
+                    description: "Nudge warns you if you're creating a reminder similar to an existing one."
                 )
                 
                 FeatureRow(
                     icon: "calendar.badge.exclamationmark",
                     title: "Calendar Conflicts",
-                    description: "Get a heads up if your reminder overlaps with calendar events."
+                    description: "Get a heads-up if your reminder overlaps with a calendar event. You can merge, change time, or save anyway."
                 )
                 
                 FeatureRow(
                     icon: "lightbulb",
                     title: "Smart Suggestions",
-                    description: "Nudge learns your preferred times and suggests them."
+                    description: "Nudge learns your preferred times and suggests them when you create reminders."
                 )
             } header: {
                 Label("Smart Features", systemImage: "brain")
@@ -144,12 +166,6 @@ struct HelpView: View {
             
             // Optional Features
             Section {
-                FeatureRow(
-                    icon: "bell.and.waves.left.and.right",
-                    title: "Default Early Alert",
-                    description: "Set a default warning time in Settings so every reminder gets a heads up automatically."
-                )
-                
                 FeatureRow(
                     icon: "waveform",
                     title: "\"Hey Nudge\"",
@@ -165,7 +181,7 @@ struct HelpView: View {
                 FeatureRow(
                     icon: "faceid",
                     title: "Face ID / Touch ID",
-                    description: "Lock Nudge with biometrics. Enable in Settings → Security."
+                    description: "Lock Nudge with biometrics for privacy. Enable in Settings."
                 )
                 
                 FeatureRow(
@@ -173,21 +189,27 @@ struct HelpView: View {
                     title: "Siri Shortcuts",
                     description: "Say \"Hey Siri, add a nudge\" to create reminders from anywhere."
                 )
+                
+                FeatureRow(
+                    icon: "envelope",
+                    title: "Send Feedback",
+                    description: "Have suggestions or found a bug? Use the Feedback option in Settings to email us."
+                )
             } header: {
                 Label("Optional Features", systemImage: "gearshape.2")
             } footer: {
                 Text("Configure these in Settings (tap the gear icon)")
             }
             
-            // Tips
+            // Pro Tips
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    TipRow(tip: "Be specific with times — \"3 PM\" works better than \"afternoon\"")
+                    TipRow(tip: "Always say AM or PM — \"3 PM\" is clearer than just \"3\"")
                     TipRow(tip: "Include the day if it's not today — \"tomorrow\", \"next Friday\"")
                     TipRow(tip: "Use \"in X minutes\" for quick reminders")
-                    TipRow(tip: "Add \"with a 15 minute warning\" to get a heads up before important reminders")
-                    TipRow(tip: "Set a default early alert in Settings so you never miss anything")
-                    TipRow(tip: "The daily closeout at 9 PM helps you review uncompleted reminders")
+                    TipRow(tip: "Say \"with a 15 minute warning\" for important reminders")
+                    TipRow(tip: "Use the keyboard option to set early alerts when typing")
+                    TipRow(tip: "If the mic gets stuck, the app will automatically reset it")
                 }
                 .padding(.vertical, 4)
             } header: {
