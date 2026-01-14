@@ -285,6 +285,15 @@ struct ContentView: View {
     }
     
     private func startRecording() {
+        // Immediate haptic feedback for instant response feel
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred()
+        
+        // Immediately update UI state
+        isHoldingMic = true
+        transcriber.transcript = ""
+        
         withAnimation {
             showUndoBanner = false
         }
@@ -292,13 +301,8 @@ struct ContentView: View {
         // Stop wake word detection while recording
         wakeWordDetector.stopListening()
         
-        isHoldingMic = true
-        transcriber.transcript = ""
-        
         do {
             try transcriber.start()
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
         } catch {
             // Failed to start - reset state
             isHoldingMic = false
@@ -310,8 +314,8 @@ struct ContentView: View {
             }
             
             // Haptic feedback for error
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.error)
+            let errorGenerator = UINotificationFeedbackGenerator()
+            errorGenerator.notificationOccurred(.error)
         }
     }
     
