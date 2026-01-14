@@ -228,7 +228,7 @@ final class CaptureFlow: ObservableObject {
         if let duplicate = DuplicateDetector.findDuplicate(title: title, dueAt: dueAt, in: modelContext) {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
             let timeStr = formatTimeWithContext(duplicate.dueAt ?? dueAt)
-            prompt = String(localized: "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway?"
+            prompt = String(localized: "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway?")
             needsFollowUp = true
             return
         }
@@ -239,7 +239,7 @@ final class CaptureFlow: ObservableObject {
             // Show conflict resolution options
             step = .calendarConflict(title: title, dueAt: dueAt, conflictingEvents: conflicts)
             let eventNames = conflicts.joined(separator: ", ")
-            prompt = String(localized: "You have \"\(eventNames)\" at that time. Say \"merge\" to combine, \"change time\", or \"save anyway\"."
+            prompt = String(localized: "You have \"\(eventNames)\" at that time. Say \"merge\" to combine, \"change time\", or \"save anyway\".")
             needsFollowUp = true
             return
         }
@@ -264,16 +264,16 @@ final class CaptureFlow: ObservableObject {
         let matches = ReminderSearch.find(matching: searchTerm, in: modelContext)
         
         if matches.isEmpty {
-            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\"."
+            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\".")
             return
         }
         
         if matches.count == 1 {
             step = .confirmCancel(reminders: matches)
-            prompt = String(localized: "Cancel \"(matches[0].title)\"?")
+            prompt = String(localized: "Cancel \"\(matches[0].title)\"?")
         } else {
             step = .confirmCancel(reminders: matches)
-            prompt = String(localized: "Found \(matches.count) reminders matching \"\(searchTerm)\". Cancel all?"
+            prompt = String(localized: "Found \(matches.count) reminders matching \"\(searchTerm)\". Cancel all?")
         }
     }
     
@@ -282,20 +282,20 @@ final class CaptureFlow: ObservableObject {
         
         if reminders.isEmpty {
             let dayStr = Calendar.current.isDateInToday(date) ? "today" : "tomorrow"
-            prompt = String(localized: "No reminders for \(dayStr)."
+            prompt = String(localized: "No reminders for \(dayStr).")
             return
         }
         
         step = .confirmCancel(reminders: reminders)
         let dayStr = Calendar.current.isDateInToday(date) ? "today" : "tomorrow"
-        prompt = String(localized: "Cancel all \(reminders.count) reminders for \(dayStr)?"
+        prompt = String(localized: "Cancel all \(reminders.count) reminders for \(dayStr)?")
     }
     
     private func handleEditReminder(_ searchTerm: String, newTime: Date?, newTitle: String?, modelContext: ModelContext) async {
         let matches = ReminderSearch.find(matching: searchTerm, in: modelContext)
         
         if matches.isEmpty {
-            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\"."
+            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\".")
             return
         }
         
@@ -344,7 +344,7 @@ final class CaptureFlow: ObservableObject {
         if reminders.count == 1 {
             prompt = String(localized: "Deleted. What's next?")
         } else {
-            prompt = String(localized: "Deleted \(reminders.count) reminders. What's next?"
+            prompt = String(localized: "Deleted \(reminders.count) reminders. What's next?")
         }
     }
     

@@ -153,7 +153,7 @@ struct DuplicateDetector {
             predicate: #Predicate { $0.statusRaw == "open" }
         )
         
-        guard let reminders = ErrorLogger.attempt("Fetching reminders for duplicate check") { try context.fetch(descriptor) } else { return nil }
+        guard let reminders = ErrorLogger.attempt("Fetching reminders for duplicate check", operation: { try context.fetch(descriptor) }) else { return nil }
         
         for reminder in reminders {
             // Check title similarity (contains key words)
@@ -203,7 +203,7 @@ struct TimeSuggestionEngine {
             predicate: #Predicate { $0.statusRaw == "completed" }
         )
         
-        guard let history = ErrorLogger.attempt("Fetching reminder history") { try context.fetch(descriptor) } else {
+        guard let history = ErrorLogger.attempt("Fetching reminder history", operation: { try context.fetch(descriptor) }) else {
             return defaultSuggestions()
         }
         
@@ -305,7 +305,7 @@ struct ReminderSearch {
             predicate: #Predicate { $0.statusRaw == "open" }
         )
         
-        guard let reminders = ErrorLogger.attempt("Fetching reminders for search") { try context.fetch(descriptor) } else { return [] }
+        guard let reminders = ErrorLogger.attempt("Fetching reminders for search", operation: { try context.fetch(descriptor) }) else { return [] }
         
         let normalizedSearch = searchTerm.lowercased()
         
@@ -322,7 +322,8 @@ struct ReminderSearch {
         )
         descriptor.fetchLimit = 1
         
-        return ErrorLogger.attempt("Fetching reminder by ID") { try context.fetch(descriptor).first }
+        let result: [ReminderItem]? = ErrorLogger.attempt("Fetching reminder by ID", operation: { try context.fetch(descriptor) })
+        return result?.first
     }
     
     /// Find all reminders for a specific date
@@ -340,7 +341,8 @@ struct ReminderSearch {
             }
         )
         
-        return ErrorLogger.attempt("Fetching reminders for date") { try context.fetch(descriptor) } ?? []
+        return ErrorLogger.attempt("Fetching reminders for date", operation: { try context.fetch(descriptor) }) ?? []
     }
 }
+
 
