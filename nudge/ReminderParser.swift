@@ -182,14 +182,14 @@ final class ReminderParser {
     // MARK: - Explicit time
     
     private func hasExplicitTimePattern(_ lower: String) -> Bool {
-        let pattern = #"at\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#
+        let pattern = #"(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#
         guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
         let range = NSRange(lower.startIndex..., in: lower)
         return re.firstMatch(in: lower, range: range) != nil
     }
     
     private func parseExplicitTime(_ lower: String, baseDate: Date) -> Date? {
-        let pattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
+        let pattern = #"(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?"#
         guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
         let range = NSRange(lower.startIndex..., in: lower)
         
@@ -258,7 +258,7 @@ final class ReminderParser {
             #"(?i)\bnight\b"#,
             #"(?i)\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b"#,
             #"(?i)\bin\s+\d+\s*(minute|minutes|hour|hours|day|days)\b"#,
-            #"(?i)\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?"#,
+            #"(?i)\b(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#,
             // Early alert phrases
             #"(?i)\bwith\s+(?:a\s+)?\d+\s*(?:minute|min|hour)s?\s*(?:warning|alert|heads?\s*up)"#,
             #"(?i)\bwith\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#,
