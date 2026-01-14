@@ -18,7 +18,10 @@ final class DailyCloseoutManager {
             }
         )
 
-        let count = (try? modelContext.fetchCount(desc)) ?? 0
+        let count = ErrorLogger.attempt("Counting today's reminders") {
+            try modelContext.fetchCount(desc)
+        } ?? 0
+        
         let center = UNUserNotificationCenter.current()
 
         if count == 0 {
@@ -44,7 +47,7 @@ final class DailyCloseoutManager {
 
         let content = UNMutableNotificationContent()
         content.title = "Daily closeout"
-        content.body = "Want to close out today’s reminders?"
+        content.body = "Want to close out today's reminders?"
         content.sound = .default
         content.categoryIdentifier = NotificationsManager.shared.closeoutCategoryIdentifier
 
@@ -55,6 +58,10 @@ final class DailyCloseoutManager {
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComps, repeats: false)
 
         let req = UNNotificationRequest(identifier: closeoutRequestID, content: content, trigger: trigger)
-        try? await center.add(req)
+        do {
+            try await center.add(req)
+        } catch {
+            ErrorLogger.log(error, context: "Scheduling daily closeout notification")
+        }
     }
 }

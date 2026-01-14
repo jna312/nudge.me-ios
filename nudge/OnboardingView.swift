@@ -37,18 +37,8 @@ struct OnboardingView: View {
         }
         .onAppear {
             style = settings.writingStyle
-            closeoutTime = dateFromMinutes(settings.dailyCloseoutMinutes)
+            closeoutTime = dateFromMinutesSinceMidnight(settings.dailyCloseoutMinutes)
         }
     }
 
-    private func minutesFromMidnight(_ date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
-    private func dateFromMinutes(_ m: Int) -> Date {
-        let h = m / 60
-        let min = m % 60
-        return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: Date())!
-    }
 }

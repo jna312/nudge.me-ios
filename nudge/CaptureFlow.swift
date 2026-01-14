@@ -22,7 +22,7 @@ extension ReminderItem: Equatable {
 
 @MainActor
 final class CaptureFlow: ObservableObject {
-    @Published var prompt: String = "What do you want me to remind you about?"
+    @Published var prompt: String = ""
     @Published var lastHeard: String = ""
     @Published var step: CaptureStep = .idle
     @Published var lastSavedReminder: ReminderItem?
@@ -31,6 +31,10 @@ final class CaptureFlow: ObservableObject {
     @Published var needsFollowUp: Bool = false  // Signals ContentView to auto-listen
 
     private let parser = ReminderParser()
+    
+    init() {
+        prompt = String(localized: "What do you want me to remind you about?")
+    }
     
     func reset() {
         step = .idle
@@ -223,8 +227,8 @@ final class CaptureFlow: ObservableObject {
         // Check for duplicates
         if let duplicate = DuplicateDetector.findDuplicate(title: title, dueAt: dueAt, in: modelContext) {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
-            let timeStr = formatTime(duplicate.dueAt ?? dueAt)
-            prompt = "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway?"
+            let timeStr = formatTimeWithContext(duplicate.dueAt ?? dueAt)
+            prompt = String(localized: "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway?"
             needsFollowUp = true
             return
         }
@@ -235,7 +239,7 @@ final class CaptureFlow: ObservableObject {
             // Show conflict resolution options
             step = .calendarConflict(title: title, dueAt: dueAt, conflictingEvents: conflicts)
             let eventNames = conflicts.joined(separator: ", ")
-            prompt = "You have \"\(eventNames)\" at that time. Say \"merge\" to combine, \"change time\", or \"save anyway\"."
+            prompt = String(localized: "You have \"\(eventNames)\" at that time. Say \"merge\" to combine, \"change time\", or \"save anyway\"."
             needsFollowUp = true
             return
         }
@@ -253,23 +257,23 @@ final class CaptureFlow: ObservableObject {
         }
         
         step = .confirmCancel(reminders: [last])
-        prompt = "Cancel \"\(last.title)\"?"
+        prompt = String(localized: "Cancel \"\(last.title)\"?")
     }
     
     private func handleCancelByName(_ searchTerm: String, modelContext: ModelContext) async {
         let matches = ReminderSearch.find(matching: searchTerm, in: modelContext)
         
         if matches.isEmpty {
-            prompt = "I couldn't find a reminder matching \"\(searchTerm)\"."
+            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\"."
             return
         }
         
         if matches.count == 1 {
             step = .confirmCancel(reminders: matches)
-            prompt = "Cancel \"\(matches[0].title)\"?"
+            prompt = String(localized: "Cancel \"(matches[0].title)\"?")
         } else {
             step = .confirmCancel(reminders: matches)
-            prompt = "Found \(matches.count) reminders matching \"\(searchTerm)\". Cancel all?"
+            prompt = String(localized: "Found \(matches.count) reminders matching \"\(searchTerm)\". Cancel all?"
         }
     }
     
@@ -278,20 +282,20 @@ final class CaptureFlow: ObservableObject {
         
         if reminders.isEmpty {
             let dayStr = Calendar.current.isDateInToday(date) ? "today" : "tomorrow"
-            prompt = "No reminders for \(dayStr)."
+            prompt = String(localized: "No reminders for \(dayStr)."
             return
         }
         
         step = .confirmCancel(reminders: reminders)
         let dayStr = Calendar.current.isDateInToday(date) ? "today" : "tomorrow"
-        prompt = "Cancel all \(reminders.count) reminders for \(dayStr)?"
+        prompt = String(localized: "Cancel all \(reminders.count) reminders for \(dayStr)?"
     }
     
     private func handleEditReminder(_ searchTerm: String, newTime: Date?, newTitle: String?, modelContext: ModelContext) async {
         let matches = ReminderSearch.find(matching: searchTerm, in: modelContext)
         
         if matches.isEmpty {
-            prompt = "I couldn't find a reminder matching \"\(searchTerm)\"."
+            prompt = String(localized: "I couldn't find a reminder matching \"\(searchTerm)\"."
             return
         }
         
@@ -299,11 +303,11 @@ final class CaptureFlow: ObservableObject {
         step = .confirmEdit(reminder: reminder, newTime: newTime, newTitle: newTitle)
         
         if let time = newTime {
-            prompt = "Move \"\(reminder.title)\" to \(formatTime(time))?"
+            prompt = String(localized: "Move \"\(reminder.title)\" to \(formatTimeWithContext(time))?")
         } else if let title = newTitle {
-            prompt = "Change \"\(reminder.title)\" to \"\(title)\"?"
+            prompt = String(localized: "Change \"\(reminder.title)\" to \"\(title)\"?")
         } else {
-            prompt = "What would you like to change about \"\(reminder.title)\"?"
+            prompt = String(localized: "What would you like to change about \"\(reminder.title)\"?")
         }
     }
     
@@ -320,7 +324,7 @@ final class CaptureFlow: ObservableObject {
             reminder.title = title
         }
         
-        try? modelContext.save()
+        modelContext.saveWithLogging(context: "Saving reminder")
         reset()
         prompt = String(localized: "Updated! What's next?")
     }
@@ -334,13 +338,13 @@ final class CaptureFlow: ObservableObject {
             modelContext.delete(reminder)
         }
         
-        try? modelContext.save()
+        modelContext.saveWithLogging(context: "Saving reminder")
         reset()
         
         if reminders.count == 1 {
             prompt = String(localized: "Deleted. What's next?")
         } else {
-            prompt = "Deleted \(reminders.count) reminders. What's next?"
+            prompt = String(localized: "Deleted \(reminders.count) reminders. What's next?"
         }
     }
     
@@ -484,20 +488,6 @@ final class CaptureFlow: ObservableObject {
                lower.contains("forget it")
     }
     
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        
-        if Calendar.current.isDateInToday(date) {
-            return formatter.string(from: date)
-        } else if Calendar.current.isDateInTomorrow(date) {
-            return "tomorrow at \(formatter.string(from: date))"
-        } else {
-            formatter.dateStyle = .short
-            return formatter.string(from: date)
-        }
-    }
-
     // MARK: - Save
 
     private func saveReminder(
@@ -521,7 +511,7 @@ final class CaptureFlow: ObservableObject {
 
         modelContext.insert(item)
         lastSavedReminder = item
-        try? modelContext.save()
+        modelContext.saveWithLogging(context: "Saving reminder")
 
         await NotificationsManager.shared.schedule(reminder: item)
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
@@ -529,36 +519,17 @@ final class CaptureFlow: ObservableObject {
         reset()
         
         // Build confirmation message
-        var confirmMsg = "Saved!"
+        var confirmMsg = String(localized: "Saved!")
         if let early = finalEarlyAlert {
-            confirmMsg += " (with \(formatEarlyAlert(early)) warning)"
+            confirmMsg += " (\(String(localized: "with")) \(formatMinutes(early)) \(String(localized: "warning")))"
         }
         if let warning = conflictWarning {
             confirmMsg += " \(warning)"
             conflictWarning = nil
         } else {
-            confirmMsg += " What's next?"
+            confirmMsg += " \(String(localized: "What's next?"))"
         }
         prompt = confirmMsg
-    }
-    
-    private func formatEarlyAlert(_ minutes: Int) -> String {
-        if minutes >= 60 {
-            let hours = minutes / 60
-            return hours == 1 ? "1 hour" : "\(hours) hour"
-        }
-        return "\(minutes) min"
-    }
-
-    
-    private func applyWritingStyle(_ s: String, style: String) -> String {
-        switch style {
-        case "caps": return s.uppercased()
-        case "title": return s.capitalized
-        default:
-            guard let first = s.first else { return s }
-            return String(first).uppercased() + s.dropFirst()
-        }
     }
 }
 

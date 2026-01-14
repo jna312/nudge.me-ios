@@ -46,7 +46,11 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     }
     
     func requestPermission() async {
-        _ = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        do {
+            _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+        } catch {
+            ErrorLogger.log(error, context: "Requesting notification permission")
+        }
     }
 
     func registerCategories() {
@@ -125,14 +129,18 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
         let mainComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertAt)
         let mainTrigger = UNCalendarNotificationTrigger(dateMatching: mainComps, repeats: false)
         let mainReq = UNNotificationRequest(identifier: mainNotificationID, content: mainContent, trigger: mainTrigger)
-        try? await center.add(mainReq)
+        do {
+            try await center.add(mainReq)
+        } catch {
+            ErrorLogger.log(error, context: "Scheduling main notification for '\(reminder.title)'")
+        }
         
         
         // Schedule early alert if configured
         if let earlyAlertAt = reminder.earlyAlertAt, earlyAlertAt > Date() {
             let earlyContent = UNMutableNotificationContent()
-            earlyContent.title = "⏰ \(formatMinutes(reminder.earlyAlertMinutes ?? 15)) warning"
-            earlyContent.body = "\(reminder.title) at \(formatTime(alertAt))"
+            earlyContent.title = "⏰ \(formatMinutes(reminder.earlyAlertMinutes ?? 15)) \(String(localized: "warning"))"
+            earlyContent.body = "\(reminder.title) \(String(localized: "at")) \(formatTimeShort(alertAt))"
             earlyContent.sound = .default
             earlyContent.userInfo = ["reminderID": reminder.id.uuidString, "isEarlyAlert": true]
             earlyContent.categoryIdentifier = reminderCategoryIdentifier
@@ -144,24 +152,14 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             let earlyComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: earlyAlertAt)
             let earlyTrigger = UNCalendarNotificationTrigger(dateMatching: earlyComps, repeats: false)
             let earlyReq = UNNotificationRequest(identifier: earlyNotificationID, content: earlyContent, trigger: earlyTrigger)
-            try? await center.add(earlyReq)
-            
+            do {
+                try await center.add(earlyReq)
+            } catch {
+                ErrorLogger.log(error, context: "Scheduling early alert for '\(reminder.title)'")
+            }
         }
     }
     
-    private func formatMinutes(_ minutes: Int) -> String {
-        if minutes >= 60 {
-            let hours = minutes / 60
-            return hours == 1 ? "1 hour" : "\(hours) hours"
-        }
-        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
-    }
-    
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
 }
 
 extension NotificationsManager {

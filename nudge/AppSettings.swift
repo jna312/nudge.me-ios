@@ -1,25 +1,77 @@
 import SwiftUI
 import Combine
 
+@MainActor
 final class AppSettings: ObservableObject {
-    @AppStorage("didCompleteOnboarding") var didCompleteOnboarding: Bool = false
+    // MARK: - Keys
+    private enum Keys {
+        static let didCompleteOnboarding = "didCompleteOnboarding"
+        static let dailyCloseoutMinutes = "dailyCloseoutMinutes"
+        static let writingStyle = "writingStyle"
+        static let wakeWordEnabled = "wakeWordEnabled"
+        static let calendarSyncEnabled = "calendarSyncEnabled"
+        static let calendarSyncFrequency = "calendarSyncFrequency"
+        static let defaultEarlyAlertMinutes = "defaultEarlyAlertMinutes"
+    }
+
+    // MARK: - Published settings
+    @Published var didCompleteOnboarding: Bool = false {
+        didSet { UserDefaults.standard.set(didCompleteOnboarding, forKey: Keys.didCompleteOnboarding) }
+    }
 
     // Times stored as minutes-from-midnight
-    @AppStorage("dailyCloseoutMinutes") var dailyCloseoutMinutes: Int = 21 * 60        // 9:00 PM
+    @Published var dailyCloseoutMinutes: Int = 21 * 60 { // 9:00 PM
+        didSet { UserDefaults.standard.set(dailyCloseoutMinutes, forKey: Keys.dailyCloseoutMinutes) }
+    }
 
-    @AppStorage("writingStyle") var writingStyle: String = "sentence" // sentence | title | caps
-    
+    // sentence | title | caps
+    @Published var writingStyle: String = "sentence" {
+        didSet { UserDefaults.standard.set(writingStyle, forKey: Keys.writingStyle) }
+    }
+
     // Wake word detection
-    @AppStorage("wakeWordEnabled") var wakeWordEnabled: Bool = false
-    
+    @Published var wakeWordEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(wakeWordEnabled, forKey: Keys.wakeWordEnabled) }
+    }
+
     // Calendar sync
-    @AppStorage("calendarSyncEnabled") var calendarSyncEnabled: Bool = false
-    
+    @Published var calendarSyncEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(calendarSyncEnabled, forKey: Keys.calendarSyncEnabled) }
+    }
+
     // Calendar sync frequency in minutes (15, 30, 60)
-    @AppStorage("calendarSyncFrequency") var calendarSyncFrequency: Int = 30
-    
-    // Security
-    
+    @Published var calendarSyncFrequency: Int = 30 {
+        didSet { UserDefaults.standard.set(calendarSyncFrequency, forKey: Keys.calendarSyncFrequency) }
+    }
+
     // Default early alert (minutes before due time, 0 = none)
-    @AppStorage("defaultEarlyAlertMinutes") var defaultEarlyAlertMinutes: Int = 0
+    @Published var defaultEarlyAlertMinutes: Int = 0 {
+        didSet { UserDefaults.standard.set(defaultEarlyAlertMinutes, forKey: Keys.defaultEarlyAlertMinutes) }
+    }
+
+    // MARK: - Init
+    init(userDefaults: UserDefaults = .standard) {
+        if userDefaults.object(forKey: Keys.didCompleteOnboarding) != nil {
+            self.didCompleteOnboarding = userDefaults.bool(forKey: Keys.didCompleteOnboarding)
+        }
+        if userDefaults.object(forKey: Keys.dailyCloseoutMinutes) != nil {
+            self.dailyCloseoutMinutes = userDefaults.integer(forKey: Keys.dailyCloseoutMinutes)
+        }
+        if let style = userDefaults.string(forKey: Keys.writingStyle) {
+            self.writingStyle = style
+        }
+        if userDefaults.object(forKey: Keys.wakeWordEnabled) != nil {
+            self.wakeWordEnabled = userDefaults.bool(forKey: Keys.wakeWordEnabled)
+        }
+        if userDefaults.object(forKey: Keys.calendarSyncEnabled) != nil {
+            self.calendarSyncEnabled = userDefaults.bool(forKey: Keys.calendarSyncEnabled)
+        }
+        if userDefaults.object(forKey: Keys.calendarSyncFrequency) != nil {
+            self.calendarSyncFrequency = userDefaults.integer(forKey: Keys.calendarSyncFrequency)
+        }
+        if userDefaults.object(forKey: Keys.defaultEarlyAlertMinutes) != nil {
+            self.defaultEarlyAlertMinutes = userDefaults.integer(forKey: Keys.defaultEarlyAlertMinutes)
+        }
+    }
 }
+

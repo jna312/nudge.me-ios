@@ -24,7 +24,7 @@ struct SettingsView: View {
                 DatePicker(
                     "Closeout time",
                     selection: Binding(
-                        get: { dateFromMinutes(settings.dailyCloseoutMinutes) },
+                        get: { dateFromMinutesSinceMidnight(settings.dailyCloseoutMinutes) },
                         set: { settings.dailyCloseoutMinutes = minutesFromMidnight($0) }
                     ),
                     displayedComponents: .hourAndMinute
@@ -174,25 +174,6 @@ struct SettingsView: View {
         }
     }
 
-    private func minutesFromMidnight(_ date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
-    private func dateFromMinutes(_ m: Int) -> Date {
-        let h = m / 60
-        let min = m % 60
-        return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: Date())!
-    }
-    
-    private func formatEarlyAlert(_ minutes: Int) -> String {
-        if minutes >= 60 {
-            let hours = minutes / 60
-            return hours == 1 ? "1 hour" : "\(hours) hour"
-        }
-        return "\(minutes) minute"
-    }
-    
     private func openFeedbackEmail() {
         let email = "jna312@gmail.com"
         let subject = "NUDGE FEEDBACK: "

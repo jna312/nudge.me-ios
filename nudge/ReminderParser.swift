@@ -239,6 +239,16 @@ final class ReminderParser {
     private func stripSchedulingPhrases(from s: String) -> String {
         var t = s
         let patterns = [
+            // Strip "remind me to" and similar phrases from the beginning
+            #"(?i)^remind\s+me\s+to\s+"#,
+            #"(?i)^remind\s+me\s+about\s+"#,
+            #"(?i)^remind\s+me\s+"#,
+            #"(?i)^don'?t\s+forget\s+to\s+"#,
+            #"(?i)^don'?t\s+let\s+me\s+forget\s+to\s+"#,
+            #"(?i)^i\s+need\s+to\s+"#,
+            #"(?i)^i\s+have\s+to\s+"#,
+            #"(?i)^i\s+should\s+"#,
+            #"(?i)^i\s+want\s+to\s+"#,
             #"(?i)\btomorrow\b"#,
             #"(?i)\btoday\b"#,
             #"(?i)\btonight\b"#,

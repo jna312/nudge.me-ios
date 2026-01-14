@@ -224,7 +224,7 @@ final class CalendarSync {
             predicate: #Predicate { $0.statusRaw == "open" }
         )
         
-        guard let reminders = try? context.fetch(descriptor) else {
+        guard let reminders = ErrorLogger.attempt("Fetching reminders for calendar sync") { try context.fetch(descriptor) } else {
             return (0, 0)
         }
         
@@ -261,7 +261,7 @@ final class CalendarSync {
         let existingDescriptor = FetchDescriptor<ReminderItem>(
             predicate: #Predicate { $0.statusRaw == "open" }
         )
-        let existingReminders = (try? context.fetch(existingDescriptor)) ?? []
+        let existingReminders = ErrorLogger.attempt("Fetching existing calendar reminders") { try context.fetch(existingDescriptor) } ?? []
         let existingTitles = Set(existingReminders.map { $0.title.lowercased() })
         
         for event in events {
@@ -289,7 +289,7 @@ final class CalendarSync {
         }
         
         if !imported.isEmpty {
-            try? context.save()
+            context.saveWithLogging(context: "Saving calendar import")
         }
         
         return imported
