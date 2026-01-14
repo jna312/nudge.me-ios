@@ -53,29 +53,24 @@ final class SpeechTranscriber: ObservableObject {
         warmUp()
     }
     
-    /// Pre-warm audio session and engine for instant start
+    /// Pre-warm audio session for faster start
     func warmUp() {
         guard !isWarmedUp else { return }
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            // Pre-configure audio session
+            // Pre-configure audio session (main speed benefit)
             let session = AVAudioSession.sharedInstance()
             do {
                 try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
+                
+                DispatchQueue.main.async {
+                    self.isWarmedUp = true
+                }
             } catch {
-                return
-            }
-            
-            // Pre-create audio engine
-            let engine = AVAudioEngine()
-            engine.prepare()
-            
-            DispatchQueue.main.async {
-                self.audioEngine = engine
-                self.isWarmedUp = true
+                // Will configure on first use
             }
         }
     }
@@ -98,40 +93,40 @@ final class SpeechTranscriber: ObservableObject {
             stateQueue.sync { isStarting = false }
         }
         
-        // Quick cleanup of recognition task only (keep audio session warm)
+        // Quick cleanup of recognition task only
         task?.cancel()
         task = nil
         request?.endAudio()
         request = nil
-        
-        // Remove existing tap if any
-        if let engine = audioEngine, engine.inputNode.numberOfInputs > 0 {
-            engine.inputNode.removeTap(onBus: 0)
-        }
         
         DispatchQueue.main.async {
             self.transcript = ""
             self.lastError = nil
         }
         
-        // Reuse warmed up engine or create new one
-        if audioEngine == nil || !isWarmedUp {
-            audioEngine = AVAudioEngine()
+        // ALWAYS set up audio session first before touching engine
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            throw TranscriberError.audioSessionFailed(error)
         }
+        
+        // Now safe to access audio engine
+        // Remove existing tap if warmed engine exists
+        if let engine = audioEngine, isWarmedUp {
+            engine.inputNode.removeTap(onBus: 0)
+            if engine.isRunning {
+                engine.stop()
+            }
+        }
+        
+        // Create fresh engine for each recording (most reliable)
+        audioEngine = AVAudioEngine()
         
         guard let audioEngine = audioEngine else {
             throw TranscriberError.engineCreationFailed
-        }
-
-        // Ensure audio session is active (quick check, usually already warm)
-        let session = AVAudioSession.sharedInstance()
-        if !session.isOtherAudioPlaying {
-            do {
-                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
-            } catch {
-                throw TranscriberError.audioSessionFailed(error)
-            }
         }
 
         // Create recognition request
@@ -154,15 +149,13 @@ final class SpeechTranscriber: ObservableObject {
             self?.request?.append(buffer)
         }
 
-        // Start engine (quick if already prepared)
-        if !audioEngine.isRunning {
-            audioEngine.prepare()
-            do {
-                try audioEngine.start()
-            } catch {
-                inputNode.removeTap(onBus: 0)
-                throw TranscriberError.engineStartFailed(error)
-            }
+        // Start engine
+        audioEngine.prepare()
+        do {
+            try audioEngine.start()
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            throw TranscriberError.engineStartFailed(error)
         }
         
         DispatchQueue.main.async {
