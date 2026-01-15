@@ -149,6 +149,7 @@ final class CaptureFlow: ObservableObject {
                     )
                 } else {
                     prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
+                    needsFollowUp = true
                 }
                 
             case .needsTime(_, let baseDate, let periodHint):
@@ -158,6 +159,7 @@ final class CaptureFlow: ObservableObject {
                 
             case .needsWhen:
                 prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
+                needsFollowUp = true
             }
             
         case .needsTime(let title, let baseDate, _):
@@ -182,6 +184,7 @@ final class CaptureFlow: ObservableObject {
                 prompt = String(localized: "Okay, cancelled. What else?")
             } else {
                 prompt = String(localized: "Say \"yes\" to save anyway, or \"no\" to cancel.")
+                needsFollowUp = true
             }
             
         case .confirmEdit(let reminder, let newTime, let newTitle):
@@ -192,6 +195,7 @@ final class CaptureFlow: ObservableObject {
                 prompt = String(localized: "Okay, no changes made.")
             } else {
                 prompt = String(localized: "Say \"yes\" to confirm or \"no\" to cancel.")
+                needsFollowUp = true
             }
             
         case .confirmCancel(let reminders):
@@ -202,6 +206,7 @@ final class CaptureFlow: ObservableObject {
                 prompt = String(localized: "Okay, nothing deleted.")
             } else {
                 prompt = String(localized: "Say \"yes\" to delete or \"no\" to keep.")
+                needsFollowUp = true
             }
             
         case .calendarConflict(let title, let dueAt, let conflictingEvents):
