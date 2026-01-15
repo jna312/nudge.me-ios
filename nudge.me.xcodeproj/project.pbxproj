@@ -10,23 +10,10 @@
 		68319A2A2F105F1500698EC6 /* nudge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nudge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		68A8A7822F14B2AF003BD750 /* Exceptions for "nudge" folder in "nudge" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 68319A292F105F1500698EC6 /* nudge */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		68319A2C2F105F1500698EC6 /* nudge */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				68A8A7822F14B2AF003BD750 /* Exceptions for "nudge" folder in "nudge" target */,
-			);
-			path = nudge;
+			path = nudge.me;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -262,7 +249,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = nudge/nudge.entitlements;
+				CODE_SIGN_ENTITLEMENTS = nudge.me/nudge.me.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -302,7 +289,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = nudge/nudge.entitlements;
+				CODE_SIGN_ENTITLEMENTS = nudge.me/nudge.me.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
