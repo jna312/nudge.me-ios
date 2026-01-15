@@ -17,7 +17,7 @@ final class WakeWordDetector: ObservableObject {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     
-    private let wakePhrase = "hey nudge me"
+    private let wakePhrase = "hey nudge"
     
     init() {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
@@ -91,9 +91,9 @@ final class WakeWordDetector: ObservableObject {
                 
                 // Check for wake phrase
                 if transcript.contains(self.wakePhrase) || 
-                   transcript.contains("hey, nudge me") ||
-                   transcript.contains("a nudge me") ||
-                   transcript.hasSuffix("nudge me") {
+                   transcript.contains("hey, nudge") ||
+                   transcript.contains("a nudge") ||
+                   transcript.hasSuffix("nudge") {
                     Task { @MainActor in
                         self.handleWakeWordDetected()
                     }
