@@ -216,10 +216,10 @@ struct RemindersView: View {
             let notificationID = "\(reminder.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
             modelContext.delete(reminder)
+        }
         
-            
-            // Sync to widget
-            WidgetDataProvider.shared.syncReminders(from: modelContext)
+        // Sync to widget
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
     }
     private func snoozeReminder(_ reminder: ReminderItem, minutes: Int) {
         let newDue = Date().addingTimeInterval(TimeInterval(minutes * 60))
@@ -392,3 +392,4 @@ struct CompletedReminderRow: View {
         }
     }
 }
+

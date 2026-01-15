@@ -19,7 +19,7 @@ final class WidgetDataProvider {
     /// Sync all active reminders to the widget
     func syncReminders(from context: ModelContext) {
         let descriptor = FetchDescriptor<ReminderItem>(
-            predicate: #Predicate { !$0.isCompleted },
+            predicate: #Predicate { $0.completedAt == nil },
             sortBy: [SortDescriptor(\.dueAt)]
         )
         
@@ -31,7 +31,7 @@ final class WidgetDataProvider {
                 id: reminder.id,
                 title: reminder.title,
                 dueAt: dueAt,
-                isCompleted: reminder.isCompleted
+                isCompleted: (reminder.completedAt != nil)
             )
         }
         
@@ -58,7 +58,6 @@ final class WidgetDataProvider {
         
         if let reminders = try? context.fetch(descriptor),
            let reminder = reminders.first {
-            reminder.isCompleted = true
             reminder.completedAt = Date()
             try? context.save()
             
@@ -75,3 +74,4 @@ struct SharedWidgetReminder: Codable {
     let dueAt: Date
     let isCompleted: Bool
 }
+
