@@ -182,14 +182,14 @@ final class ReminderParser {
     // MARK: - Explicit time
     
     private func hasExplicitTimePattern(_ lower: String) -> Bool {
-        let pattern = #"(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#
+        let pattern = #"(?:at|by)\s*\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#
         guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
         let range = NSRange(lower.startIndex..., in: lower)
         return re.firstMatch(in: lower, range: range) != nil
     }
     
     private func parseExplicitTime(_ lower: String, baseDate: Date) -> Date? {
-        let pattern = #"(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?"#
+        let pattern = #"(?:at|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?"#
         guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
         let range = NSRange(lower.startIndex..., in: lower)
         
@@ -204,7 +204,7 @@ final class ReminderParser {
         let hasExplicitAmPm = m.range(at: 3).location != NSNotFound
         
         if hasExplicitAmPm, let ampmR = Range(m.range(at: 3), in: lower) {
-            let ampm = lower[ampmR]
+            let ampm = lower[ampmR].lowercased().replacingOccurrences(of: ".", with: "")
             if ampm == "pm", hour < 12 { hour += 12 }
             if ampm == "am", hour == 12 { hour = 0 }
         } else if hourRaw >= 1 && hourRaw <= 12 {
