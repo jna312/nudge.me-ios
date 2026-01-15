@@ -6,7 +6,7 @@ import WidgetKit
 final class WidgetDataProvider {
     static let shared = WidgetDataProvider()
     
-    private let appGroupID = "group.com.nudge.me"
+    private let appGroupID = "group.com.m2.nudge"
     private let remindersKey = "widgetReminders"
     private let completedKey = "completedFromWidget"
     

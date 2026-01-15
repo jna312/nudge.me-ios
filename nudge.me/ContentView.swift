@@ -304,17 +304,17 @@ struct ContentView: View {
         
         // Auto-start recording after wake word
         wakeWordTriggered = true
-        isAutoListening = true  // Enable silence detection
+        isAutoListening = true  // Enable silence detection after speech starts
         startRecording()
         
-        // Start silence timer - will auto-stop after 2 seconds of silence
-        resetSilenceTimer()
+        // Don't start silence timer yet - wait until user starts speaking
         
-        // Safety timeout after 15 seconds (if silence detection fails)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-            if isHoldingMic && wakeWordTriggered {
+        // Safety timeout after 60 seconds (in case user forgets)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            if isHoldingMic && wakeWordTriggered && transcriber.transcript.isEmpty {
                 stopRecording()
                 wakeWordTriggered = false
+                flow.prompt = String(localized: "Mic timed out. Tap to try again.")
             }
         }
     }
@@ -406,7 +406,7 @@ struct ContentView: View {
             try transcriber.start()
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.impactOccurred()
-            resetSilenceTimer()
+            // Don't start silence timer yet - wait until user starts speaking
         } catch {
             // Failed to start - reset state
             isHoldingMic = false
@@ -418,10 +418,11 @@ struct ContentView: View {
             }
         }
         
-        // Safety timeout after 8 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-            if self.isAutoListening {
+        // Safety timeout after 60 seconds (in case user forgets)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            if self.isAutoListening && self.transcriber.transcript.isEmpty {
                 self.stopRecording()
+                self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
             }
         }
     }
@@ -429,17 +430,16 @@ struct ContentView: View {
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
         
-        // Determine timeout based on whether user has spoken yet
+        // Only use silence detection after user has started speaking
         let hasSpoken = !transcriber.transcript.isEmpty
-        let silenceTimeout: TimeInterval = hasSpoken ? 1.5 : 3.0  // Wait longer before first speech
+        guard hasSpoken else { return }  // Don't timeout before speech
+        
+        // After speech detected, wait for 2 seconds of silence to auto-stop
+        let silenceTimeout: TimeInterval = 2.0
         
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { _ in
             DispatchQueue.main.async {
                 if self.isAutoListening {
-                    // If wake word triggered and no speech, give a gentle prompt
-                    if self.wakeWordTriggered && self.transcriber.transcript.isEmpty {
-                        self.flow.prompt = String(localized: "I didn't catch that. Try again?")
-                    }
                     self.stopRecording()
                 }
             }

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		688842902F1992EE003648BC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6888428A2F1992EE003648BC /* Assets.xcassets */; };
+		688842912F1992EE003648BC /* NudgeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6888428C2F1992EE003648BC /* NudgeWidget.swift */; };
+		688842922F1992EE003648BC /* NudgeWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6888428D2F1992EE003648BC /* NudgeWidgetBundle.swift */; };
 		68B185C92F198C33000DBF4C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 68B185C82F198C33000DBF4C /* WidgetKit.framework */; };
 		68B185CB2F198C33000DBF4C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 68B185CA2F198C33000DBF4C /* SwiftUI.framework */; };
 		68B185D82F198C35000DBF4C /* NudgeWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -38,6 +41,11 @@
 
 /* Begin PBXFileReference section */
 		68319A2A2F105F1500698EC6 /* nudge.me.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nudge.me.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		688842892F19928B003648BC /* NudgeWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NudgeWidgetExtension.entitlements; sourceTree = "<group>"; };
+		6888428A2F1992EE003648BC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6888428B2F1992EE003648BC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		6888428C2F1992EE003648BC /* NudgeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeWidget.swift; sourceTree = "<group>"; };
+		6888428D2F1992EE003648BC /* NudgeWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeWidgetBundle.swift; sourceTree = "<group>"; };
 		68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NudgeWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		68B185C82F198C33000DBF4C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		68B185CA2F198C33000DBF4C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -87,6 +95,8 @@
 		68319A212F105F1500698EC6 = {
 			isa = PBXGroup;
 			children = (
+				6888428E2F1992EE003648BC /* NudgeWidget */,
+				688842892F19928B003648BC /* NudgeWidgetExtension.entitlements */,
 				68319A2C2F105F1500698EC6 /* nudge.me */,
 				68B185C72F198C33000DBF4C /* Frameworks */,
 				68319A2B2F105F1500698EC6 /* Products */,
@@ -100,6 +110,17 @@
 				68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		6888428E2F1992EE003648BC /* NudgeWidget */ = {
+			isa = PBXGroup;
+			children = (
+				6888428A2F1992EE003648BC /* Assets.xcassets */,
+				6888428B2F1992EE003648BC /* Info.plist */,
+				6888428C2F1992EE003648BC /* NudgeWidget.swift */,
+				6888428D2F1992EE003648BC /* NudgeWidgetBundle.swift */,
+			);
+			path = NudgeWidget;
 			sourceTree = "<group>";
 		};
 		68B185C72F198C33000DBF4C /* Frameworks */ = {
@@ -131,10 +152,10 @@
 			fileSystemSynchronizedGroups = (
 				68319A2C2F105F1500698EC6 /* nudge.me */,
 			);
-			name = "nudge.me";
+			name = nudge.me;
 			packageProductDependencies = (
 			);
-			productName = "nudge.me";
+			productName = nudge.me;
 			productReference = 68319A2A2F105F1500698EC6 /* nudge.me.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -208,6 +229,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				688842902F1992EE003648BC /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,6 +247,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				688842912F1992EE003648BC /* NudgeWidget.swift in Sources */,
+				688842922F1992EE003648BC /* NudgeWidgetBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +394,7 @@
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
@@ -386,7 +411,6 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reminderly.nudge;
-				INFOPLIST_KEY_CFBundleDisplayName = "nudge.me";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -411,6 +435,7 @@
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to create reminders by voice.";
@@ -427,7 +452,6 @@
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.reminderly.nudge;
-				INFOPLIST_KEY_CFBundleDisplayName = "nudge.me";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -446,13 +470,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = NudgeWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NudgeWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "nudge.me";
+				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -479,13 +504,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = NudgeWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NudgeWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "nudge.me";
+				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

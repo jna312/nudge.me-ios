@@ -30,7 +30,7 @@ struct NudgeTimelineProvider: TimelineProvider {
     }
     
     private func loadReminders() -> [WidgetReminder] {
-        guard let defaults = UserDefaults(suiteName: "group.com.nudge.me"),
+        guard let defaults = UserDefaults(suiteName: "group.com.m2.nudge"),
               let data = defaults.data(forKey: "widgetReminders"),
               let decoded = try? JSONDecoder().decode([SharedReminder].self, from: data) else {
             return []
