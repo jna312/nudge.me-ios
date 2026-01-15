@@ -140,32 +140,120 @@ final class ReminderParser {
         var baseDate = now
         var hasDay = false
         
+        // Check for specific date like "January 19" or "Jan 19"
+        if let specificDate = parseSpecificDate(from: lower) {
+            return (specificDate, true)
+        }
+        
         if lower.contains("tomorrow") {
             baseDate = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
             hasDay = true
         } else if lower.contains("today") {
             hasDay = true
-        } else if let nextWeekday = parseNextWeekday(from: lower) {
-            baseDate = nextWeekday
+        } else if let weekdayDate = parseWeekday(from: lower) {
+            baseDate = weekdayDate
             hasDay = true
         }
         
         return (baseDate, hasDay)
     }
     
-    private func parseNextWeekday(from lower: String) -> Date? {
-        guard lower.contains("next") else { return nil }
+    /// Parse specific dates like "January 19", "Jan 19", "1/19"
+    private func parseSpecificDate(from lower: String) -> Date? {
+        let cal = Calendar.current
+        let now = Date()
+        let currentYear = cal.component(.year, from: now)
+        
+        // Month names to numbers
+        let months: [(String, Int)] = [
+            ("january", 1), ("jan", 1), ("february", 2), ("feb", 2),
+            ("march", 3), ("mar", 3), ("april", 4), ("apr", 4),
+            ("may", 5), ("june", 6), ("jun", 6), ("july", 7), ("jul", 7),
+            ("august", 8), ("aug", 8), ("september", 9), ("sep", 9), ("sept", 9),
+            ("october", 10), ("oct", 10), ("november", 11), ("nov", 11),
+            ("december", 12), ("dec", 12)
+        ]
+        
+        // Pattern: "January 19" or "Jan 19" or "January 19th"
+        for (monthName, monthNum) in months {
+            let pattern = "\b\(monthName)\s+(\d{1,2})(?:st|nd|rd|th)?\b"
+            if let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+               let match = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+               let dayRange = Range(match.range(at: 1), in: lower),
+               let day = Int(lower[dayRange]) {
+                
+                var comps = DateComponents()
+                comps.year = currentYear
+                comps.month = monthNum
+                comps.day = day
+                
+                if let date = cal.date(from: comps) {
+                    // If date is in the past, use next year
+                    if date < now {
+                        comps.year = currentYear + 1
+                        return cal.date(from: comps)
+                    }
+                    return date
+                }
+            }
+        }
+        
+        // Pattern: "1/19" or "01/19"
+        let slashPattern = #"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?"#
+        if let re = try? NSRegularExpression(pattern: slashPattern, options: []),
+           let match = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+           let monthRange = Range(match.range(at: 1), in: lower),
+           let dayRange = Range(match.range(at: 2), in: lower),
+           let month = Int(lower[monthRange]),
+           let day = Int(lower[dayRange]) {
+            
+            var comps = DateComponents()
+            comps.month = month
+            comps.day = day
+            
+            // Check for year
+            if match.numberOfRanges > 3, let yearRange = Range(match.range(at: 3), in: lower) {
+                var year = Int(lower[yearRange]) ?? currentYear
+                if year < 100 { year += 2000 }
+                comps.year = year
+            } else {
+                comps.year = currentYear
+            }
+            
+            if let date = cal.date(from: comps) {
+                if date < now && match.numberOfRanges <= 3 {
+                    comps.year = currentYear + 1
+                    return cal.date(from: comps)
+                }
+                return date
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Parse weekday like "monday" or "on monday" or "next monday"
+    private func parseWeekday(from lower: String) -> Date? {
         let weekdays: [(String, Int)] = [
             ("sunday", 1), ("monday", 2), ("tuesday", 3), ("wednesday", 4),
             ("thursday", 5), ("friday", 6), ("saturday", 7)
         ]
+        
         guard let match = weekdays.first(where: { lower.contains($0.0) }) else { return nil }
 
         let cal = Calendar.current
         let now = Date()
         let todayWeekday = cal.component(.weekday, from: now)
         var delta = match.1 - todayWeekday
-        if delta <= 0 { delta += 7 }
+        
+        // "next monday" means at least 7 days from now
+        if lower.contains("next") {
+            if delta <= 0 { delta += 7 }
+        } else {
+            // "on monday" or just "monday" - use this week if future, otherwise next week
+            if delta <= 0 { delta += 7 }
+        }
+        
         return cal.date(byAdding: .day, value: delta, to: now)
     }
     
