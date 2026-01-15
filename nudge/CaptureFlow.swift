@@ -117,6 +117,24 @@ final class CaptureFlow: ObservableObject {
             }
 
         case .gotTask(let title):
+            // First try to parse just a time (e.g., "8 am", "3:30 pm")
+            if let time = parseTimeOnly(t) {
+                let now = Date()
+                var due = combineDateAndTime(baseDate: now, time: time)
+                // If time already passed today, use tomorrow
+                if due <= now {
+                    due = Calendar.current.date(byAdding: .day, value: 1, to: due) ?? due
+                }
+                await prepareToSave(
+                    title: title,
+                    dueAt: due,
+                    settings: settings,
+                    modelContext: modelContext
+                )
+                return
+            }
+            
+            // Otherwise try full parser (for "tomorrow at 3pm", "in 30 minutes", etc.)
             let result = parser.parse(t)
             
             switch result {
