@@ -112,8 +112,8 @@ final class SpeechTranscriber: ObservableObject {
             
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
+                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
+                try session.setActive(true)
                 
                 DispatchQueue.main.async {
                     self.isWarmedUp = true
@@ -168,8 +168,8 @@ final class SpeechTranscriber: ObservableObject {
         // ALWAYS set up audio session first
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
+            try session.setActive(true)
         } catch {
             throw TranscriberError.audioSessionFailed(error)
         }
@@ -308,10 +308,20 @@ final class SpeechTranscriber: ObservableObject {
         
         if let engine = audioEngine {
             engine.inputNode.removeTap(onBus: 0)
+            if engine.isRunning {
+                engine.stop()
+            }
+        }
+        audioEngine = nil
+        
+        // Deactivate audio session so music resumes at full volume
+        DispatchQueue.global(qos: .userInitiated).async {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
         
         DispatchQueue.main.async {
             self.isRecording = false
+            self.isWarmedUp = false  // Will re-warm on next use
         }
     }
     
