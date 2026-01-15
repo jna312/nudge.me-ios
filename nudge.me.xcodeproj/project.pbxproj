@@ -37,19 +37,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		68319A2A2F105F1500698EC6 /* nudge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nudge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68319A2A2F105F1500698EC6 /* nudge.me.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nudge.me.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NudgeWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		68B185C82F198C33000DBF4C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		68B185CA2F198C33000DBF4C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		68B185C12F198B7C000DBF4C /* Exceptions for "nudge.me" folder in "nudge" target */ = {
+		68B185C12F198B7C000DBF4C /* Exceptions for "nudge.me" folder in "nudge.me" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 68319A292F105F1500698EC6 /* nudge */;
+			target = 68319A292F105F1500698EC6 /* nudge.me */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -57,7 +57,7 @@
 		68319A2C2F105F1500698EC6 /* nudge.me */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				68B185C12F198B7C000DBF4C /* Exceptions for "nudge.me" folder in "nudge" target */,
+				68B185C12F198B7C000DBF4C /* Exceptions for "nudge.me" folder in "nudge.me" target */,
 			);
 			path = nudge.me;
 			sourceTree = "<group>";
@@ -96,7 +96,7 @@
 		68319A2B2F105F1500698EC6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				68319A2A2F105F1500698EC6 /* nudge.app */,
+				68319A2A2F105F1500698EC6 /* nudge.me.app */,
 				68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */,
 			);
 			name = Products;
@@ -114,9 +114,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		68319A292F105F1500698EC6 /* nudge */ = {
+		68319A292F105F1500698EC6 /* nudge.me */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 68319A352F105F1700698EC6 /* Build configuration list for PBXNativeTarget "nudge" */;
+			buildConfigurationList = 68319A352F105F1700698EC6 /* Build configuration list for PBXNativeTarget "nudge.me" */;
 			buildPhases = (
 				68319A262F105F1500698EC6 /* Sources */,
 				68319A272F105F1500698EC6 /* Frameworks */,
@@ -131,11 +131,11 @@
 			fileSystemSynchronizedGroups = (
 				68319A2C2F105F1500698EC6 /* nudge.me */,
 			);
-			name = nudge;
+			name = "nudge.me";
 			packageProductDependencies = (
 			);
-			productName = nudge;
-			productReference = 68319A2A2F105F1500698EC6 /* nudge.app */;
+			productName = "nudge.me";
+			productReference = 68319A2A2F105F1500698EC6 /* nudge.me.app */;
 			productType = "com.apple.product-type.application";
 		};
 		68B185C52F198C33000DBF4C /* NudgeWidgetExtension */ = {
@@ -190,7 +190,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				68319A292F105F1500698EC6 /* nudge */,
+				68319A292F105F1500698EC6 /* nudge.me */,
 				68B185C52F198C33000DBF4C /* NudgeWidgetExtension */,
 			);
 		};
@@ -517,7 +517,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		68319A352F105F1700698EC6 /* Build configuration list for PBXNativeTarget "nudge" */ = {
+		68319A352F105F1700698EC6 /* Build configuration list for PBXNativeTarget "nudge.me" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				68319A362F105F1700698EC6 /* Debug */,
