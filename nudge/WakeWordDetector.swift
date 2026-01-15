@@ -49,7 +49,10 @@ final class WakeWordDetector: ObservableObject {
         request = nil
         task = nil
         
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Deactivate async to prevent blocking
+        DispatchQueue.global(qos: .utility).async {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
     
     private func setupAudioSession() throws {

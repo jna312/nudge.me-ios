@@ -143,11 +143,12 @@ final class SpeechTranscriber: ObservableObject {
             engine = prewarmed
             prewarmedEngine = nil
         } else {
-            // Fallback: set up audio session synchronously (slower)
+            // Fallback: set up audio session (pre-warm failed)
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
-            try session.setActive(true)
+            try session.setActive(true)  // Fast when duckOthers is used
             engine = AVAudioEngine()
+            engine.prepare()  // Pre-prepare to speed up start()
         }
         
         audioEngine = engine
@@ -225,7 +226,10 @@ final class SpeechTranscriber: ObservableObject {
         prewarmedEngine = nil
         audioSessionReady = false
         
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // Deactivate session async to prevent blocking
+        audioQueue.async {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
         
         DispatchQueue.main.async {
             self.isRecording = false
