@@ -107,7 +107,7 @@ struct SmallWidgetView: View {
     let entry: NudgeWidgetEntry
     
     var body: some View {
-        Link(destination: URL(string: "nudge://voice")!) {
+        Link(destination: URL(string: "nudgeme://voice")!) {
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -144,7 +144,7 @@ struct MediumWidgetView: View {
     var body: some View {
         HStack(spacing: 16) {
             // Left side: Mic button
-            Link(destination: URL(string: "nudge://voice")!) {
+            Link(destination: URL(string: "nudgeme://voice")!) {
                 VStack(spacing: 8) {
                     ZStack {
                         Circle()
@@ -175,7 +175,7 @@ struct MediumWidgetView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 } else {
                     ForEach(entry.reminders.prefix(3)) { reminder in
-                        Link(destination: URL(string: "nudge://reminder/\(reminder.id.uuidString)")!) {
+                        Link(destination: URL(string: "nudgeme://reminder/\(reminder.id.uuidString)")!) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(reminder.title)
@@ -239,7 +239,7 @@ struct LargeWidgetView: View {
                 
                 Spacer()
                 
-                Link(destination: URL(string: "nudge://voice")!) {
+                Link(destination: URL(string: "nudgeme://voice")!) {
                     ZStack {
                         Circle()
                             .fill(Color.blue)
@@ -273,7 +273,7 @@ struct LargeWidgetView: View {
                     }
                     
                     if entry.reminders.count > 5 {
-                        Link(destination: URL(string: "nudge://reminders")!) {
+                        Link(destination: URL(string: "nudgeme://reminders")!) {
                             Text("View all \(entry.reminders.count) reminders")
                                 .font(.caption)
                                 .foregroundColor(.blue)
@@ -299,7 +299,7 @@ struct ReminderRowView: View {
     let reminder: WidgetReminder
     
     var body: some View {
-        Link(destination: URL(string: "nudge://reminder/\(reminder.id.uuidString)")!) {
+        Link(destination: URL(string: "nudgeme://reminder/\(reminder.id.uuidString)")!) {
             HStack(spacing: 12) {
                 Image(systemName: "circle")
                     .font(.system(size: 20))

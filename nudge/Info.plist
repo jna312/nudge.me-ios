@@ -22,7 +22,7 @@
         <dict>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>nudge</string>
+                <string>nudgeme</string>
             </array>
             <key>CFBundleURLName</key>
             <string>com.nudge.me</string>

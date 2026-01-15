@@ -77,7 +77,7 @@ struct RootView: View {
     }
     
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "nudge" else { return }
+        guard url.scheme == "nudgeme" else { return }
         
         switch url.host {
         case "voice":
