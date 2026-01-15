@@ -19,6 +19,8 @@
         <string>UIInterfaceOrientationPortrait</string>
         <string>UIInterfaceOrientationPortraitUpsideDown</string>
     </array>
+    <key>UIRequiresFullScreen</key>
+    <true/>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
