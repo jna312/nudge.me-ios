@@ -4,7 +4,7 @@ import os.log
 
 /// Centralized error logging for debugging
 enum ErrorLogger {
-    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.nudge", category: "errors")
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.nudge.me", category: "errors")
     
     /// Log an error with context
     static func log(_ error: Error, context: String, file: String = #file, function: String = #function, line: Int = #line) {

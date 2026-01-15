@@ -53,7 +53,7 @@ struct NudgeTimelineProvider: TimelineProvider {
     
     private func loadReminders() -> [WidgetReminder] {
         // Load from App Group shared UserDefaults
-        guard let sharedDefaults = UserDefaults(suiteName: "group.com.nudge.app") else {
+        guard let sharedDefaults = UserDefaults(suiteName: "group.com.nudge.me") else {
             return []
         }
         
@@ -228,7 +228,7 @@ struct LargeWidgetView: View {
             // Header with mic button
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Nudge")
+                    Text("nudge.me")
                         .font(.headline)
                         .fontWeight(.bold)
                     
@@ -347,7 +347,7 @@ struct NudgeWidget: Widget {
         StaticConfiguration(kind: kind, provider: NudgeTimelineProvider()) { entry in
             NudgeWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Nudge")
+        .configurationDisplayName("nudge.me")
         .description("Quick access to add reminders and see today's tasks.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }

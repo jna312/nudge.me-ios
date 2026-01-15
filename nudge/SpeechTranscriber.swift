@@ -13,8 +13,8 @@ final class SpeechTranscriber: ObservableObject {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     
-    private let stateQueue = DispatchQueue(label: "com.nudge.transcriber.state")
-    private let audioQueue = DispatchQueue(label: "com.nudge.transcriber.audio", qos: .userInteractive)
+    private let stateQueue = DispatchQueue(label: "com.nudge.me.transcriber.state")
+    private let audioQueue = DispatchQueue(label: "com.nudge.me.transcriber.audio", qos: .userInteractive)
     private var isStarting = false
     private var isStopping = false
     private var audioSessionReady = false

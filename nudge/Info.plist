@@ -25,7 +25,7 @@
                 <string>nudge</string>
             </array>
             <key>CFBundleURLName</key>
-            <string>com.nudge.app</string>
+            <string>com.nudge.me</string>
         </dict>
     </array>
 </dict>
