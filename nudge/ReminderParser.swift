@@ -304,8 +304,9 @@ final class ReminderParser {
             #"(?i)\bwith\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#,
             #"(?i)\b(?:warn|alert|remind)\s+me\s+\d+\s*(?:minute|min|hour)s?\s*(?:before|early|earlier)"#,
             
-            // Clean up "that" at the start of what remains
+            // Clean up "to" or "that" at the start of what remains
             #"(?i)^\s*that\s+"#,
+            #"(?i)^\s*to\s+"#,
         ]
         for p in patterns { t = t.replacingOccurrences(of: p, with: "", options: .regularExpression) }
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
