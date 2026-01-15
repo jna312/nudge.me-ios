@@ -15,6 +15,7 @@ struct ContentView: View {
     
     @State private var isHoldingMic = false
     @State private var showQuickAdd = false
+    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     @State private var lastSavedReminder: ReminderItem?
     @State private var showUndoBanner = false
     @State private var wakeWordTriggered = false
@@ -167,6 +168,9 @@ struct ContentView: View {
             await NotificationsManager.shared.requestPermission()
             NotificationsManager.shared.registerCategories()
             
+            // Pre-prepare haptic for instant response
+            hapticGenerator.prepare()
+            
             // Set up notification callbacks
             NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber, weak wakeWordDetector] in
                 transcriber?.stop()
@@ -267,6 +271,7 @@ struct ContentView: View {
             if newPhase == .active {
                 // App became active - ensure audio system is ready
                 transcriber.warmUp()
+                hapticGenerator.prepare()
                 if settings.wakeWordEnabled && !isHoldingMic && !isSettingsOpen {
                     wakeWordDetector.startListening()
                 }
@@ -303,10 +308,8 @@ struct ContentView: View {
     }
     
     private func startRecording() {
-        // Immediate haptic feedback for instant response feel
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.prepare()
-        generator.impactOccurred()
+        // Immediate haptic feedback - generator already prepared
+        hapticGenerator.impactOccurred()
         
         // Immediately update UI state
         isHoldingMic = true
