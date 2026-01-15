@@ -7,6 +7,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var settings: AppSettings
     @Binding var isSettingsOpen: Bool
+    @Binding var autoStartMic: Bool
 
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
@@ -196,6 +197,14 @@ struct ContentView: View {
                 tipsManager.showTipIfNeeded(.holdToSpeak)
             }
         }
+        .onChange(of: autoStartMic) { _, shouldStart in
+            if shouldStart {
+                autoStartMic = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    startAutoListening()
+                }
+            }
+        }
         .onChange(of: settings.wakeWordEnabled) { _, enabled in
             wakeWordDetector.isEnabled = enabled
             if enabled {
@@ -230,6 +239,9 @@ struct ContentView: View {
                         await CalendarSync.shared.syncToCalendar(reminder: reminder)
                     }
                 }
+                
+                // Sync to widget
+                WidgetDataProvider.shared.syncReminders(from: modelContext)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                     withAnimation {

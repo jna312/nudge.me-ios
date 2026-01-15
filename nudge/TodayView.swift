@@ -3,6 +3,7 @@ import SwiftData
 import UserNotifications
 struct RemindersView: View {
     @Environment(\.modelContext) private var modelContext
+    @Binding var selectedReminderID: UUID?
     @EnvironmentObject var settings: AppSettings
     @Query(
         filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
@@ -189,6 +190,13 @@ struct RemindersView: View {
                 }
             }
         }
+        .onChange(of: selectedReminderID) { _, newID in
+            if let id = newID,
+               let reminder = openReminders.first(where: { $0.id == id }) {
+                editingReminder = reminder
+                selectedReminderID = nil
+            }
+        }
         .overlay {
             // Tip overlay
             if let tip = tipsManager.currentTip {
@@ -208,7 +216,10 @@ struct RemindersView: View {
             let notificationID = "\(reminder.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
             modelContext.delete(reminder)
-        }
+        
+            
+            // Sync to widget
+            WidgetDataProvider.shared.syncReminders(from: modelContext)
     }
     private func snoozeReminder(_ reminder: ReminderItem, minutes: Int) {
         let newDue = Date().addingTimeInterval(TimeInterval(minutes * 60))
@@ -222,6 +233,9 @@ struct RemindersView: View {
                 await CalendarSync.shared.syncToCalendar(reminder: reminder)
             }
         }
+        
+        // Sync to widget
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
     }
 }
 struct ReminderRow: View {
