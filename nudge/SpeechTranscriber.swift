@@ -18,7 +18,6 @@ final class SpeechTranscriber: ObservableObject {
     private var isStarting = false
     private var isStopping = false
     private var audioSessionReady = false
-    private var prewarmedEngine: AVAudioEngine?
 
     init() {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: Locale.current.identifier))
@@ -84,7 +83,7 @@ final class SpeechTranscriber: ObservableObject {
         warmUp()
     }
     
-    /// Pre-warm audio session and engine - call this BEFORE user presses mic
+    /// Pre-warm audio session ONLY (not engine) - safe to call anytime
     func warmUp() {
         guard !audioSessionReady else { return }
         
@@ -96,12 +95,7 @@ final class SpeechTranscriber: ObservableObject {
                 try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
                 try session.setActive(true)
                 
-                // Pre-create audio engine
-                let engine = AVAudioEngine()
-                engine.prepare()
-                
                 DispatchQueue.main.async {
-                    self.prewarmedEngine = engine
                     self.audioSessionReady = true
                 }
             } catch {
@@ -110,7 +104,7 @@ final class SpeechTranscriber: ObservableObject {
         }
     }
 
-    /// Start recording - optimized for instant response
+    /// Start recording
     func start() throws {
         var shouldReturn = false
         stateQueue.sync {
@@ -137,20 +131,20 @@ final class SpeechTranscriber: ObservableObject {
         transcript = ""
         lastError = nil
         
-        // Use pre-warmed engine if available, otherwise create new
-        let engine: AVAudioEngine
-        if let prewarmed = prewarmedEngine, audioSessionReady {
-            engine = prewarmed
-            prewarmedEngine = nil
-        } else {
-            // Fallback: set up audio session (pre-warm failed)
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
-            try session.setActive(true)  // Fast when duckOthers is used
-            engine = AVAudioEngine()
-            engine.prepare()  // Pre-prepare to speed up start()
+        // ALWAYS ensure audio session is configured first
+        let session = AVAudioSession.sharedInstance()
+        if !audioSessionReady {
+            do {
+                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
+                try session.setActive(true)
+                audioSessionReady = true
+            } catch {
+                throw TranscriberError.audioSessionFailed(error)
+            }
         }
         
+        // Create fresh engine AFTER audio session is ready
+        let engine = AVAudioEngine()
         audioEngine = engine
 
         // Create recognition request
@@ -160,7 +154,7 @@ final class SpeechTranscriber: ObservableObject {
         }
         request.shouldReportPartialResults = true
         
-        // Configure audio tap
+        // Configure audio tap - audio session MUST be active before this
         let inputNode = engine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         
@@ -172,10 +166,13 @@ final class SpeechTranscriber: ObservableObject {
             self?.request?.append(buffer)
         }
 
-        // Start engine (should be fast if pre-warmed)
-        if !engine.isRunning {
-            engine.prepare()
+        // Start engine
+        engine.prepare()
+        do {
             try engine.start()
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            throw TranscriberError.engineStartFailed(error)
         }
         
         isRecording = true
@@ -223,10 +220,8 @@ final class SpeechTranscriber: ObservableObject {
             engine.inputNode.removeTap(onBus: 0)
         }
         audioEngine = nil
-        prewarmedEngine = nil
         audioSessionReady = false
         
-        // Deactivate session async to prevent blocking
         audioQueue.async {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
@@ -264,7 +259,6 @@ final class SpeechTranscriber: ObservableObject {
         }
         audioEngine = nil
         
-        // Deactivate session async so music resumes without blocking
         audioQueue.async {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
