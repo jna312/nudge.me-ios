@@ -268,9 +268,12 @@ struct ContentView: View {
             handleWakeWordTriggered()
         }
         .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
-            if needsFollowUp && !isHoldingMic && !isSettingsOpen {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    startAutoListening()
+            if needsFollowUp {
+                // Delay to let state settle, then check conditions
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    if !isHoldingMic && !isSettingsOpen {
+                        startAutoListening()
+                    }
                 }
             }
         }
@@ -365,10 +368,13 @@ struct ContentView: View {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
         
-        // Resume wake word detection
+        // Resume wake word detection (but only if no follow-up is needed)
         if settings.wakeWordEnabled {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                wakeWordDetector.startListening()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                // Only start wake word if we're not auto-listening for follow-up
+                if !isHoldingMic && !flow.needsFollowUp {
+                    wakeWordDetector.startListening()
+                }
             }
         }
         

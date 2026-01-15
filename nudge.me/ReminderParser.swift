@@ -273,6 +273,13 @@ final class ReminderParser {
             #"(?i)^\s*i\s+should\s+"#,
             #"(?i)^\s*i\s+want\s+to\s+"#,
             
+            // Strip "I have a/an..." variations
+            #"(?i)^\s*i\s+have\s+(?:a|an)\s+"#,
+            #"(?i)^\s*i(?:'ve|'ve)\s+got\s+(?:a|an)\s+"#,
+            #"(?i)^\s*i\s+got\s+(?:a|an)\s+"#,
+            #"(?i)^\s*there(?:'s|'s|s)\s+(?:a|an)\s+"#,
+            #"(?i)^\s*got\s+(?:a|an)\s+"#,
+            
             // Specific dates: "on monday, january 19" or "january 19"
             #"(?i)\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s*"#,
             #"(?i)\bon\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
