@@ -17,8 +17,59 @@ final class SpeechTranscriber: ObservableObject {
     private var isStarting = false
     private var isStopping = false
     private var isWarmedUp = false
+    private var lastUsedTime: Date?
 
     init() {
+        createFreshRecognizer()
+        
+        // Listen for app lifecycle to handle long-running sessions
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleAppDidBecomeActive() {
+        // Re-warm audio system when app becomes active (handles long background periods)
+        isWarmedUp = false
+        warmUp()
+        
+        // Recreate recognizer if it's been a while (handles stale state)
+        if let lastUsed = lastUsedTime, Date().timeIntervalSince(lastUsed) > 300 {
+            createFreshRecognizer()
+        }
+    }
+    
+    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        if type == .ended {
+            // Audio interruption ended - re-warm
+            isWarmedUp = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.warmUp()
+            }
+        }
+    }
+    
+    private func createFreshRecognizer() {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: Locale.current.identifier))
     }
     
@@ -49,7 +100,6 @@ final class SpeechTranscriber: ObservableObject {
             }
         }
         
-        // Pre-warm audio system after permissions granted
         warmUp()
     }
     
@@ -60,7 +110,6 @@ final class SpeechTranscriber: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            // Pre-configure audio session (main speed benefit)
             let session = AVAudioSession.sharedInstance()
             do {
                 try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
@@ -73,6 +122,15 @@ final class SpeechTranscriber: ObservableObject {
                 // Will configure on first use
             }
         }
+    }
+    
+    /// Ensure recognizer is available and fresh
+    private func ensureRecognizerAvailable() -> Bool {
+        // Check if recognizer exists and is available
+        if recognizer == nil || recognizer?.isAvailable != true {
+            createFreshRecognizer()
+        }
+        return recognizer?.isAvailable == true
     }
 
     func start() throws {
@@ -93,7 +151,10 @@ final class SpeechTranscriber: ObservableObject {
             stateQueue.sync { isStarting = false }
         }
         
-        // Quick cleanup of recognition task only
+        // Track usage time for long-running detection
+        lastUsedTime = Date()
+        
+        // Cleanup any existing state
         task?.cancel()
         task = nil
         request?.endAudio()
@@ -104,7 +165,7 @@ final class SpeechTranscriber: ObservableObject {
             self.lastError = nil
         }
         
-        // ALWAYS set up audio session first before touching engine
+        // ALWAYS set up audio session first
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
@@ -113,8 +174,7 @@ final class SpeechTranscriber: ObservableObject {
             throw TranscriberError.audioSessionFailed(error)
         }
         
-        // Now safe to access audio engine
-        // Remove existing tap if warmed engine exists
+        // Cleanup old engine if exists
         if let engine = audioEngine, isWarmedUp {
             engine.inputNode.removeTap(onBus: 0)
             if engine.isRunning {
@@ -122,7 +182,7 @@ final class SpeechTranscriber: ObservableObject {
             }
         }
         
-        // Create fresh engine for each recording (most reliable)
+        // Create fresh engine for each recording
         audioEngine = AVAudioEngine()
         
         guard let audioEngine = audioEngine else {
@@ -140,7 +200,6 @@ final class SpeechTranscriber: ObservableObject {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         
-        // Check format validity
         guard recordingFormat.sampleRate > 0 && recordingFormat.channelCount > 0 else {
             throw TranscriberError.invalidAudioFormat
         }
@@ -162,8 +221,8 @@ final class SpeechTranscriber: ObservableObject {
             self.isRecording = true
         }
 
-        // Start recognition
-        guard let recognizer = recognizer, recognizer.isAvailable else {
+        // Ensure recognizer is fresh and available
+        guard ensureRecognizerAvailable(), let recognizer = recognizer else {
             stop()
             throw TranscriberError.recognizerUnavailable
         }
@@ -173,7 +232,7 @@ final class SpeechTranscriber: ObservableObject {
             
             if let error = error {
                 let nsError = error as NSError
-                // Ignore cancellation errors (code 203, 216)
+                // Ignore cancellation errors (code 203, 216, 1110)
                 if nsError.code != 203 && nsError.code != 216 && nsError.code != 1110 {
                     DispatchQueue.main.async {
                         self.lastError = error.localizedDescription
@@ -192,15 +251,11 @@ final class SpeechTranscriber: ObservableObject {
     
     /// Force cleanup - use when state is potentially corrupted
     private func forceCleanup() {
-        // Cancel any recognition task
         task?.cancel()
         task = nil
-        
-        // End audio request
         request?.endAudio()
         request = nil
         
-        // Clean up audio engine
         if let engine = audioEngine {
             if engine.isRunning {
                 engine.stop()
@@ -210,7 +265,6 @@ final class SpeechTranscriber: ObservableObject {
         audioEngine = nil
         isWarmedUp = false
         
-        // Deactivate audio session (ignore errors during cleanup)
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
     
@@ -222,6 +276,7 @@ final class SpeechTranscriber: ObservableObject {
         }
         
         forceCleanup()
+        createFreshRecognizer()
         isWarmedUp = false
         
         DispatchQueue.main.async {
@@ -232,7 +287,6 @@ final class SpeechTranscriber: ObservableObject {
     }
 
     func stop() {
-        // Prevent concurrent stop calls
         var shouldReturn = false
         stateQueue.sync {
             if isStopping {
@@ -247,22 +301,14 @@ final class SpeechTranscriber: ObservableObject {
             stateQueue.sync { isStopping = false }
         }
         
-        // End recognition request first (triggers final result)
         request?.endAudio()
-        
-        // Cancel task
         task?.finish()
         task = nil
         request = nil
         
-        // Remove tap but keep engine warm for next recording
         if let engine = audioEngine {
             engine.inputNode.removeTap(onBus: 0)
-            // Don't stop engine - keep it ready for next use
         }
-        
-        // Keep audio session active for faster next start
-        // Only deactivate on forceCleanup/reset
         
         DispatchQueue.main.async {
             self.isRecording = false
@@ -274,7 +320,7 @@ final class SpeechTranscriber: ObservableObject {
         if isRecording {
             return audioEngine?.isRunning == true
         }
-        return true
+        return recognizer?.isAvailable == true
     }
 }
 

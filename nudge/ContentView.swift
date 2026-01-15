@@ -4,6 +4,7 @@ import UserNotifications
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var settings: AppSettings
     @Binding var isSettingsOpen: Bool
 
@@ -260,6 +261,23 @@ struct ContentView: View {
         .onChange(of: transcriber.transcript) { _, newValue in
             if isAutoListening && !newValue.isEmpty {
                 resetSilenceTimer()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // App became active - ensure audio system is ready
+                transcriber.warmUp()
+                if settings.wakeWordEnabled && !isHoldingMic && !isSettingsOpen {
+                    wakeWordDetector.startListening()
+                }
+            } else if newPhase == .background {
+                // App going to background - clean up
+                if isHoldingMic {
+                    stopRecording()
+                }
+                wakeWordDetector.stopListening()
+                silenceTimer?.invalidate()
+                silenceTimer = nil
             }
         }
     }
