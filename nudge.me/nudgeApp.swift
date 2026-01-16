@@ -18,13 +18,13 @@ struct NudgeApp: App {
     init() {
         _ = NotificationsManager.shared
         
-        // Test: Local only (no CloudKit) to verify SwiftData works
+        // CloudKit sync enabled
         do {
-            let config = ModelConfiguration(cloudKitDatabase: .none)
+            let config = ModelConfiguration(cloudKitDatabase: .automatic)
             modelContainer = try ModelContainer(for: ReminderItem.self, configurations: config)
-            print("✓ SwiftData initialized successfully (local mode)")
+            print("✓ SwiftData initialized successfully with CloudKit")
         } catch {
-            print("SwiftData error: \(error)")
+            print("SwiftData/CloudKit error: \(error)")
             fatalError("Could not create ModelContainer: \(error)")
         }
     }

@@ -8,12 +8,13 @@ final class ReminderItem {
         case completed
     }
     
-    var id: UUID
-    var title: String
-    var createdAt: Date
+    // CloudKit requires all properties to be optional OR have default values
+    var id: UUID = UUID()
+    var title: String = ""
+    var createdAt: Date = Date.now
 
     // Persist enum via raw string for SwiftData compatibility
-    var statusRaw: String
+    var statusRaw: String = "open"
 
     // Optional dates referenced by the app
     var dueAt: Date?
