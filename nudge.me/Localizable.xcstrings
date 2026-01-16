@@ -20076,7 +20076,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "您已有"%1$@"在%2$@。仍要保存吗？请说YES或NO。"
+            "value" : "您已有「%1$@」在%2$@。仍要保存吗？请说YES或NO。"
           }
         },
         "zh-Hant" : {
