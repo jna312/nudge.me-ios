@@ -223,20 +223,25 @@ struct SiriShortcutsInfoView: View {
                         Image(systemName: "list.bullet").font(.title3).foregroundStyle(.blue).frame(width: 28)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("List Reminders by Date").font(.subheadline).fontWeight(.medium)
-                            Text("\"Hey Siri, list my Nudges for...\"").font(.caption).foregroundStyle(.secondary)
-                            Text("\"Hey Siri, what are my Nudges for...\"").font(.caption).foregroundStyle(.secondary)
+                            Text("\"Hey Siri, list my Nudges\"").font(.caption).foregroundStyle(.secondary)
+                            Text("\"Hey Siri, what are my Nudges\"").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("• \"...for today\"")
-                        Text("• \"...for tomorrow\"")
-                        Text("• \"...for Friday\"")
-                        Text("• \"...for January 20th\"")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 40)
+                    Text("Siri will ask:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 40)
+                    
+                    Text("\"Which day do you want to see nudges for?\"")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 40)
+                    
+                    Text("Say: today, tomorrow, Friday, etc.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 40)
                 }
                 .padding(.vertical, 4)
             } header: {
