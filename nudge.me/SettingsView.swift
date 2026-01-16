@@ -190,19 +190,64 @@ struct SiriShortcutsInfoView: View {
     var body: some View {
         List {
             Section {
-                ShortcutRow(title: "Add a Nudge", phrase: "\"Hey Siri, add a nudge\"", icon: "plus.circle")
-                ShortcutRow(title: "List My Nudges", phrase: "\"Hey Siri, show my nudges\"", icon: "list.bullet")
-                ShortcutRow(title: "Quick Nudge", phrase: "\"Hey Siri, quick nudge\" (1 hour)", icon: "clock")
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle").font(.title3).foregroundStyle(.blue).frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Create a Reminder").font(.subheadline).fontWeight(.medium)
+                            Text("\"Hey Siri, Nudge me\"").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Text("Siri will ask:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 40)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("1. \"What do you want to be reminded about?\"")
+                        Text("2. \"When should I remind you?\"")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 40)
+                }
+                .padding(.vertical, 4)
             } header: {
-                Text("Available Shortcuts")
-            } footer: {
-                Text("Find these in the Shortcuts app under \"Nudge\".")
+                Text("Add a Nudge")
+            }
+            
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "list.bullet").font(.title3).foregroundStyle(.blue).frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("List Reminders by Date").font(.subheadline).fontWeight(.medium)
+                            Text("\"Hey Siri, list my Nudges for...\"").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("• \"...for today\"")
+                        Text("• \"...for tomorrow\"")
+                        Text("• \"...for Friday\"")
+                        Text("• \"...for January 20th\"")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 40)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("List Nudges")
             }
             
             Section {
                 Link(destination: URL(string: "shortcuts://")!) {
                     Label("Open Shortcuts App", systemImage: "arrow.up.forward.app")
                 }
+            } footer: {
+                Text("Run the app once to register shortcuts with Siri.")
             }
         }
         .navigationTitle("Siri Shortcuts")

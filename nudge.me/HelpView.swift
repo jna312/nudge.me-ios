@@ -164,24 +164,37 @@ struct HelpView: View {
                 Label("Smart Features", systemImage: "brain")
             }
             
+            // Siri Shortcuts
+            Section {
+                FeatureRow(
+                    icon: "mic.circle.fill",
+                    title: "\"Hey Siri, Nudge me\"",
+                    description: "Create a reminder using only your voice. Siri asks what you want to be reminded about, then when to remind you."
+                )
+                
+                FeatureRow(
+                    icon: "list.bullet.circle.fill",
+                    title: "\"Hey Siri, list my Nudges for...\"",
+                    description: "Hear your reminders for a specific day. Say \"...for today\", \"...for tomorrow\", \"...for Friday\", or any date."
+                )
+            } header: {
+                Label("Siri Shortcuts", systemImage: "apple.intelligence")
+            } footer: {
+                Text("Run the app once to register shortcuts with Siri")
+            }
+            
             // Optional Features
             Section {
                 FeatureRow(
                     icon: "waveform",
                     title: "\"Hey Nudge\"",
-                    description: "Enable in Settings to start recording hands-free by saying \"Hey Nudge\"."
+                    description: "Enable in Settings to start recording hands-free by saying \"Hey Nudge\" while in the app."
                 )
                 
                 FeatureRow(
                     icon: "calendar",
                     title: "Calendar Sync",
                     description: "Sync reminders to Apple Calendar as events. Enable in Settings."
-                )
-                
-                FeatureRow(
-                    icon: "apps.iphone",
-                    title: "Siri Shortcuts",
-                    description: "Say \"Hey Siri, add a nudge\" to create reminders from anywhere."
                 )
                 
                 FeatureRow(
