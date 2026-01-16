@@ -24,7 +24,7 @@ struct NudgeApp: App {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
-            cloudKitDatabase: .automatic // Syncs to user's private iCloud database
+            cloudKitDatabase: .none // Temporarily disabled - re-enable with .automatic for iCloud sync
         )
         
         do {
