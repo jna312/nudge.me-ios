@@ -180,12 +180,6 @@ struct HelpView: View {
             // Optional Features
             Section {
                 FeatureRow(
-                    icon: "waveform",
-                    title: "\"Hey Nudge\"",
-                    description: "Enable in Settings to start recording hands-free by saying \"Hey Nudge\" while in the app."
-                )
-                
-                FeatureRow(
                     icon: "calendar",
                     title: "Calendar Sync",
                     description: "Sync reminders to Apple Calendar as events. Enable in Settings."

@@ -5,22 +5,12 @@ struct OnboardingView: View {
 
     @State private var closeoutTime: Date = Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: Date())!
     @State private var style: String = "sentence"
-    @State private var wakeWordEnabled: Bool = false
     @State private var calendarSyncEnabled: Bool = false
     @State private var earlyAlertMinutes: Int = 0
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle("\"Hey Nudge\" Voice Activation", isOn: $wakeWordEnabled)
-                    Text("Say \"Hey Nudge\" to start recording hands-free.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text("Voice Activation")
-                }
-                
                 Section {
                     Toggle("Sync with Calendar", isOn: $calendarSyncEnabled)
                     Text("Add reminders to Apple Calendar so you can see them alongside your events.")
@@ -73,7 +63,6 @@ struct OnboardingView: View {
         .onAppear {
             style = settings.writingStyle
             closeoutTime = dateFromMinutesSinceMidnight(settings.dailyCloseoutMinutes)
-            wakeWordEnabled = settings.wakeWordEnabled
             calendarSyncEnabled = settings.calendarSyncEnabled
             earlyAlertMinutes = settings.defaultEarlyAlertMinutes
         }
@@ -82,7 +71,6 @@ struct OnboardingView: View {
     private func saveSettings() {
         settings.dailyCloseoutMinutes = minutesFromMidnight(closeoutTime)
         settings.writingStyle = style
-        settings.wakeWordEnabled = wakeWordEnabled
         settings.defaultEarlyAlertMinutes = earlyAlertMinutes
         
         // Handle calendar sync with permission request

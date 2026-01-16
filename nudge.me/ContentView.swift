@@ -11,7 +11,6 @@ struct ContentView: View {
 
     @StateObject private var flow = CaptureFlow()
     @StateObject private var transcriber = SpeechTranscriber()
-    @StateObject private var wakeWordDetector = WakeWordDetector()
     @ObservedObject private var tipsManager = TipsManager.shared
     
     @State private var isHoldingMic = false
@@ -19,7 +18,6 @@ struct ContentView: View {
     @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     @State private var lastSavedReminder: ReminderItem?
     @State private var showUndoBanner = false
-    @State private var wakeWordTriggered = false
     @State private var isAutoListening = false
     @State private var silenceTimer: Timer?
 
@@ -27,22 +25,6 @@ struct ContentView: View {
         ZStack {
             VStack(spacing: 32) {
                 Spacer()
-                
-                // Wake word indicator
-                if settings.wakeWordEnabled && wakeWordDetector.isListening {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 8, height: 8)
-                        Text("Listening for \"Hey Nudge\"...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Capsule())
-                }
                 
                 // Prompt text
                 Text(flow.prompt)
@@ -107,7 +89,7 @@ struct ContentView: View {
                     .disabled(isSettingsOpen)
                     .opacity(isSettingsOpen ? 0.5 : 1.0)
                     
-                    Text(isHoldingMic ? "Release to save" : (settings.wakeWordEnabled ? "Hold or say \"Hey Nudge\"" : "Hold to speak"))
+                    Text(isHoldingMic ? "Release to save" : "Hold to speak")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -173,23 +155,9 @@ struct ContentView: View {
             hapticGenerator.prepare()
             
             // Set up notification callbacks
-            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber, weak wakeWordDetector] in
+            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
                 transcriber?.stop()
-                wakeWordDetector?.stopListening()
                 isHoldingMic = false
-            }
-            
-            NotificationsManager.shared.onNotificationSoundComplete = { [weak wakeWordDetector] in
-                // Resume wake word if enabled
-                if settings.wakeWordEnabled {
-                    wakeWordDetector?.startListening()
-                }
-            }
-            
-            // Start wake word detection if enabled
-            if settings.wakeWordEnabled {
-                wakeWordDetector.isEnabled = true
-                wakeWordDetector.startListening()
             }
             
             // Show hold to speak tip on first launch
@@ -205,24 +173,11 @@ struct ContentView: View {
                 }
             }
         }
-        .onChange(of: settings.wakeWordEnabled) { _, enabled in
-            wakeWordDetector.isEnabled = enabled
-            if enabled {
-                wakeWordDetector.startListening()
-            } else {
-                wakeWordDetector.stopListening()
-            }
-        }
         .onChange(of: isSettingsOpen) { _, isOpen in
             if isOpen {
                 if isHoldingMic {
                     transcriber.stop()
                     isHoldingMic = false
-                }
-                wakeWordDetector.stopListening()
-            } else {
-                if settings.wakeWordEnabled {
-                    wakeWordDetector.startListening()
                 }
             }
         }
@@ -264,9 +219,6 @@ struct ContentView: View {
                 }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .wakeWordDetected)) { _ in
-            handleWakeWordTriggered()
-        }
         .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
             if needsFollowUp {
                 // Delay to let state settle, then check conditions
@@ -287,37 +239,13 @@ struct ContentView: View {
                 // App became active - ensure audio system is ready
                 transcriber.warmUp()
                 hapticGenerator.prepare()
-                if settings.wakeWordEnabled && !isHoldingMic && !isSettingsOpen {
-                    wakeWordDetector.startListening()
-                }
             } else if newPhase == .background {
                 // App going to background - clean up
                 if isHoldingMic {
                     stopRecording()
                 }
-                wakeWordDetector.stopListening()
                 silenceTimer?.invalidate()
                 silenceTimer = nil
-            }
-        }
-    }
-    
-    private func handleWakeWordTriggered() {
-        guard !isHoldingMic && !isSettingsOpen else { return }
-        
-        // Auto-start recording after wake word
-        wakeWordTriggered = true
-        isAutoListening = true  // Enable silence detection after speech starts
-        startRecording()
-        
-        // Don't start silence timer yet - wait until user starts speaking
-        
-        // Safety timeout after 60 seconds (in case user forgets)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-            if isHoldingMic && wakeWordTriggered && transcriber.transcript.isEmpty {
-                stopRecording()
-                wakeWordTriggered = false
-                flow.prompt = String(localized: "Mic timed out. Tap to try again.")
             }
         }
     }
@@ -334,20 +262,12 @@ struct ContentView: View {
             showUndoBanner = false
         }
         
-        // Stop wake word detection while recording
-        wakeWordDetector.stopListening()
-        
         do {
             try transcriber.start()
         } catch {
             // Failed to start - reset state
             isHoldingMic = false
             transcriber.reset()
-            
-            // Resume wake word if enabled
-            if settings.wakeWordEnabled {
-                wakeWordDetector.startListening()
-            }
             
             // Haptic feedback for error
             let errorGenerator = UINotificationFeedbackGenerator()
@@ -360,23 +280,12 @@ struct ContentView: View {
         silenceTimer?.invalidate()
         silenceTimer = nil
         isHoldingMic = false
-        wakeWordTriggered = false
         transcriber.stop()
         
         let finalText = transcriber.transcript
         
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
-        
-        // Resume wake word detection (but only if no follow-up is needed)
-        if settings.wakeWordEnabled {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                // Only start wake word if we're not auto-listening for follow-up
-                if !isHoldingMic && !flow.needsFollowUp {
-                    wakeWordDetector.startListening()
-                }
-            }
-        }
         
         guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             transcriber.transcript = ""
@@ -402,8 +311,6 @@ struct ContentView: View {
             showUndoBanner = false
         }
         
-        wakeWordDetector.stopListening()
-        
         isHoldingMic = true
         isAutoListening = true
         transcriber.transcript = ""
@@ -418,10 +325,6 @@ struct ContentView: View {
             isHoldingMic = false
             isAutoListening = false
             transcriber.reset()
-            
-            if settings.wakeWordEnabled {
-                wakeWordDetector.startListening()
-            }
         }
         
         // Safety timeout after 60 seconds (in case user forgets)

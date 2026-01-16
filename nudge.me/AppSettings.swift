@@ -8,7 +8,6 @@ final class AppSettings: ObservableObject {
         static let didCompleteOnboarding = "didCompleteOnboarding"
         static let dailyCloseoutMinutes = "dailyCloseoutMinutes"
         static let writingStyle = "writingStyle"
-        static let wakeWordEnabled = "wakeWordEnabled"
         static let calendarSyncEnabled = "calendarSyncEnabled"
         static let calendarSyncFrequency = "calendarSyncFrequency"
         static let defaultEarlyAlertMinutes = "defaultEarlyAlertMinutes"
@@ -27,11 +26,6 @@ final class AppSettings: ObservableObject {
     // sentence | title | caps
     @Published var writingStyle: String = "sentence" {
         didSet { UserDefaults.standard.set(writingStyle, forKey: Keys.writingStyle) }
-    }
-
-    // Wake word detection
-    @Published var wakeWordEnabled: Bool = false {
-        didSet { UserDefaults.standard.set(wakeWordEnabled, forKey: Keys.wakeWordEnabled) }
     }
 
     // Calendar sync
@@ -59,9 +53,6 @@ final class AppSettings: ObservableObject {
         }
         if let style = userDefaults.string(forKey: Keys.writingStyle) {
             self.writingStyle = style
-        }
-        if userDefaults.object(forKey: Keys.wakeWordEnabled) != nil {
-            self.wakeWordEnabled = userDefaults.bool(forKey: Keys.wakeWordEnabled)
         }
         if userDefaults.object(forKey: Keys.calendarSyncEnabled) != nil {
             self.calendarSyncEnabled = userDefaults.bool(forKey: Keys.calendarSyncEnabled)

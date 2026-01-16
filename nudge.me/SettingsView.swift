@@ -35,15 +35,6 @@ struct SettingsView: View {
             }
             
             Section {
-                Toggle("\"Hey Nudge\" Wake Word", isOn: $settings.wakeWordEnabled)
-                Text("Say \"Hey Nudge\" to start recording hands-free.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Voice Activation")
-            }
-            
-            Section {
                 Toggle("Sync with Calendar", isOn: $settings.calendarSyncEnabled)
                     .disabled(isSyncing)
                     .onChange(of: settings.calendarSyncEnabled) { _, enabled in
