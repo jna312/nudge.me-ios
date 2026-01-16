@@ -215,9 +215,9 @@ struct NudgeShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: ListNudgesForDateIntent(),
             phrases: [
-                "List my \(.applicationName)s",
-                "Show my \(.applicationName)s",
-                "What are my \(.applicationName)s"
+                "List reminders in \(.applicationName)",
+                "Show reminders in \(.applicationName)",
+                "What's on my \(.applicationName)"
             ],
             shortTitle: "List Nudges",
             systemImageName: "list.bullet"
