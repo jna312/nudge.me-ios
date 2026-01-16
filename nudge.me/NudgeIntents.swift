@@ -10,10 +10,10 @@ struct AddNudgeIntent: AppIntent {
     
     static var openAppWhenRun: Bool = false
     
-    @Parameter(title: "What to remember")
+    @Parameter(title: "Reminder", requestValueDialog: "What do you want to be reminded about?")
     var reminderTitle: String
     
-    @Parameter(title: "When", description: "When should I remind you?")
+    @Parameter(title: "Time", requestValueDialog: "When should I remind you?")
     var dueDate: Date
     
     static var parameterSummary: some ParameterSummary {
@@ -47,11 +47,20 @@ struct AddNudgeIntent: AppIntent {
     }
 }
 
-// MARK: - List Reminders Intent
+// MARK: - List Reminders for Date Intent
 
-struct ListNudgesIntent: AppIntent {
-    static var title: LocalizedStringResource = "List My Nudges"
-    static var description = IntentDescription("Show your upcoming reminders")
+struct ListNudgesForDateIntent: AppIntent {
+    static var title: LocalizedStringResource = "List My Nudges for a Date"
+    static var description = IntentDescription("Show your reminders for a specific day")
+    
+    static var openAppWhenRun: Bool = false
+    
+    @Parameter(title: "Date", requestValueDialog: "Which day do you want to see nudges for?")
+    var targetDate: Date
+    
+    static var parameterSummary: some ParameterSummary {
+        Summary("List my nudges for \(\.$targetDate)")
+    }
     
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -59,29 +68,55 @@ struct ListNudgesIntent: AppIntent {
         let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
-        var descriptor = FetchDescriptor<ReminderItem>(
+        // Get start and end of the target day
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: targetDate)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        let descriptor = FetchDescriptor<ReminderItem>(
             predicate: #Predicate { $0.statusRaw == "open" },
             sortBy: [SortDescriptor(\.dueAt)]
         )
-        descriptor.fetchLimit = 5
         
-        let reminders = try context.fetch(descriptor)
+        let allReminders = try context.fetch(descriptor)
+        
+        // Filter to reminders on the target day
+        let reminders = allReminders.filter { reminder in
+            guard let dueAt = reminder.dueAt else { return false }
+            return dueAt >= startOfDay && dueAt < endOfDay
+        }
+        
+        // Format the date for speech
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateStyle = .full
+        dayFormatter.timeStyle = .none
+        let dayStr = dayFormatter.string(from: targetDate)
         
         if reminders.isEmpty {
-            return .result(dialog: "You have no upcoming reminders. Enjoy your free time!")
+            return .result(dialog: "You have no nudges for \(dayStr).")
         }
         
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        formatter.dateStyle = .short
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+        timeFormatter.dateStyle = .none
         
-        var list = "Here are your upcoming nudges:\n"
-        for reminder in reminders {
-            let timeStr = reminder.dueAt.map { formatter.string(from: $0) } ?? "No time set"
-            list += "• \(reminder.title) - \(timeStr)\n"
+        if reminders.count == 1 {
+            let reminder = reminders[0]
+            let timeStr = reminder.dueAt.map { timeFormatter.string(from: $0) } ?? ""
+            return .result(dialog: "You have 1 nudge for \(dayStr): \(reminder.title) at \(timeStr).")
         }
         
-        return .result(dialog: "\(list)")
+        var list = "You have \(reminders.count) nudges for \(dayStr): "
+        for (index, reminder) in reminders.enumerated() {
+            let timeStr = reminder.dueAt.map { timeFormatter.string(from: $0) } ?? ""
+            if index == reminders.count - 1 {
+                list += "and \(reminder.title) at \(timeStr)."
+            } else {
+                list += "\(reminder.title) at \(timeStr), "
+            }
+        }
+        
+        return .result(dialog: list)
     }
 }
 
@@ -136,11 +171,12 @@ struct NudgeShortcuts: AppShortcutsProvider {
             systemImageName: "plus.circle"
         )
         AppShortcut(
-            intent: ListNudgesIntent(),
+            intent: ListNudgesForDateIntent(),
             phrases: [
-                "Show my \(.applicationName)s"
+                "List my \(.applicationName)s for \(\.$targetDate)",
+                "Show my \(.applicationName)s for \(\.$targetDate)"
             ],
-            shortTitle: "My Nudges",
+            shortTitle: "List Nudges",
             systemImageName: "list.bullet"
         )
     }
