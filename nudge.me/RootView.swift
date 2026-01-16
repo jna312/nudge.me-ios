@@ -59,11 +59,6 @@ struct RootView: View {
             handleDeepLink(url)
         }
         .task {
-            // Start calendar auto-sync if enabled
-            if settings.calendarSyncEnabled {
-                CalendarSync.shared.startAutoSync(frequency: settings.calendarSyncFrequency, context: modelContext)
-            }
-            
             // Sync reminders to widget
             WidgetDataProvider.shared.syncReminders(from: modelContext)
             
