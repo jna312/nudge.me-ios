@@ -130,8 +130,7 @@ struct NudgeShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AddNudgeIntent(),
             phrases: [
-                "Nudge me in \(.applicationName)",
-                "Add a nudge in \(.applicationName)"
+                "\(.applicationName) me"
             ],
             shortTitle: "Nudge Me",
             systemImageName: "plus.circle"
@@ -139,8 +138,7 @@ struct NudgeShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: ListNudgesIntent(),
             phrases: [
-                "Show my nudges in \(.applicationName)",
-                "List my nudges in \(.applicationName)"
+                "Show my \(.applicationName)s"
             ],
             shortTitle: "My Nudges",
             systemImageName: "list.bullet"
