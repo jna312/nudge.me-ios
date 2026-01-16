@@ -315,7 +315,13 @@ final class ReminderParser {
             #"(?i)^\s*that\s+"#,
             #"(?i)^\s*to\s+"#,
         ]
-        for p in patterns { t = t.replacingOccurrences(of: p, with: "", options: .regularExpression) }
+        // Run multiple passes to handle nested phrases like "remind me that I have an..."
+        for _ in 1...3 {
+            for p in patterns { 
+                t = t.replacingOccurrences(of: p, with: "", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
         return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
