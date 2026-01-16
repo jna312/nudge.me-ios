@@ -224,6 +224,7 @@ struct SiriShortcutsInfoView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("List Reminders by Date").font(.subheadline).fontWeight(.medium)
                             Text("\"Hey Siri, list my Nudges for...\"").font(.caption).foregroundStyle(.secondary)
+                            Text("\"Hey Siri, what are my Nudges for...\"").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     

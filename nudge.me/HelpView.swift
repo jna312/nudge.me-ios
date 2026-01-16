@@ -175,7 +175,7 @@ struct HelpView: View {
                 FeatureRow(
                     icon: "list.bullet.circle.fill",
                     title: "\"Hey Siri, list my Nudges for...\"",
-                    description: "Hear your reminders for a specific day. Say \"...for today\", \"...for tomorrow\", \"...for Friday\", or any date."
+                    description: "Hear your reminders for a specific day. Say \"...for today\", \"...for tomorrow\", \"...for Friday\", or any date. You can also say \"what are my Nudges for...\""
                 )
             } header: {
                 Label("Siri Shortcuts", systemImage: "apple.intelligence")
