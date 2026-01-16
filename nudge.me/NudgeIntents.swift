@@ -47,19 +47,68 @@ struct AddNudgeIntent: AppIntent {
     }
 }
 
-// MARK: - List Reminders for Date Intent
+// MARK: - Date Option Enum
+
+enum NudgeDateOption: String, AppEnum {
+    case today
+    case tomorrow
+    case thisWeek
+    
+    static var typeDisplayRepresentation: TypeDisplayRepresentation {
+        "Date"
+    }
+    
+    static var caseDisplayRepresentations: [NudgeDateOption: DisplayRepresentation] {
+        [
+            .today: "Today",
+            .tomorrow: "Tomorrow",
+            .thisWeek: "This Week"
+        ]
+    }
+    
+    var dateRange: (start: Date, end: Date) {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch self {
+        case .today:
+            let start = calendar.startOfDay(for: now)
+            let end = calendar.date(byAdding: .day, value: 1, to: start)!
+            return (start, end)
+        case .tomorrow:
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
+            let start = calendar.startOfDay(for: tomorrow)
+            let end = calendar.date(byAdding: .day, value: 1, to: start)!
+            return (start, end)
+        case .thisWeek:
+            let start = calendar.startOfDay(for: now)
+            let end = calendar.date(byAdding: .day, value: 7, to: start)!
+            return (start, end)
+        }
+    }
+    
+    var displayName: String {
+        switch self {
+        case .today: return "today"
+        case .tomorrow: return "tomorrow"
+        case .thisWeek: return "this week"
+        }
+    }
+}
+
+// MARK: - List Reminders Intent
 
 struct ListNudgesForDateIntent: AppIntent {
-    static var title: LocalizedStringResource = "List My Nudges for a Date"
+    static var title: LocalizedStringResource = "List My Nudges"
     static var description = IntentDescription("Show your reminders for a specific day")
     
     static var openAppWhenRun: Bool = false
     
-    @Parameter(title: "Date")
-    var targetDate: Date
+    @Parameter(title: "When")
+    var dateOption: NudgeDateOption
     
     static var parameterSummary: some ParameterSummary {
-        Summary("List my nudges for \(\.$targetDate)")
+        Summary("List my nudges for \(\.$dateOption)")
     }
     
     @MainActor
@@ -68,10 +117,7 @@ struct ListNudgesForDateIntent: AppIntent {
         let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
-        // Get start and end of the target day
-        let calendar = Calendar.current
-        let startOfDay = calendar.startOfDay(for: targetDate)
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        let range = dateOption.dateRange
         
         let descriptor = FetchDescriptor<ReminderItem>(
             predicate: #Predicate { $0.statusRaw == "open" },
@@ -80,17 +126,13 @@ struct ListNudgesForDateIntent: AppIntent {
         
         let allReminders = try context.fetch(descriptor)
         
-        // Filter to reminders on the target day
+        // Filter to reminders in the date range
         let reminders = allReminders.filter { reminder in
             guard let dueAt = reminder.dueAt else { return false }
-            return dueAt >= startOfDay && dueAt < endOfDay
+            return dueAt >= range.start && dueAt < range.end
         }
         
-        // Format the date for speech
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateStyle = .full
-        dayFormatter.timeStyle = .none
-        let dayStr = dayFormatter.string(from: targetDate)
+        let dayStr = dateOption.displayName
         
         if reminders.isEmpty {
             return .result(dialog: IntentDialog(stringLiteral: "You have no nudges for \(dayStr)."))
