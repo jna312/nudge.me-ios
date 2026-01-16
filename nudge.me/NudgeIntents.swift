@@ -22,7 +22,8 @@ struct AddNudgeIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(for: ReminderItem.self)
+        let config = ModelConfiguration(cloudKitDatabase: .automatic)
+        let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
         let reminder = ReminderItem(
@@ -54,7 +55,8 @@ struct ListNudgesIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(for: ReminderItem.self)
+        let config = ModelConfiguration(cloudKitDatabase: .automatic)
+        let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
         var descriptor = FetchDescriptor<ReminderItem>(
@@ -94,7 +96,8 @@ struct CompleteNudgeIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(for: ReminderItem.self)
+        let config = ModelConfiguration(cloudKitDatabase: .automatic)
+        let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
         let searchTerm = reminderTitle.lowercased()
@@ -135,7 +138,8 @@ struct QuickNudgeIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let container = try ModelContainer(for: ReminderItem.self)
+        let config = ModelConfiguration(cloudKitDatabase: .automatic)
+        let container = try ModelContainer(for: ReminderItem.self, configurations: config)
         let context = ModelContext(container)
         
         let dueDate = Date().addingTimeInterval(3600) // 1 hour
