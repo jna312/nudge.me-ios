@@ -43,7 +43,7 @@ struct AddNudgeIntent: AppIntent {
         formatter.dateStyle = .short
         let timeStr = formatter.string(from: dueDate)
         
-        return .result(dialog: "Got it! I'll remind you to \(reminderTitle) at \(timeStr)")
+        return .result(dialog: IntentDialog(stringLiteral: "Got it! I'll remind you to \(reminderTitle) at \(timeStr)"))
     }
 }
 
@@ -93,7 +93,7 @@ struct ListNudgesForDateIntent: AppIntent {
         let dayStr = dayFormatter.string(from: targetDate)
         
         if reminders.isEmpty {
-            return .result(dialog: "You have no nudges for \(dayStr).")
+            return .result(dialog: IntentDialog(stringLiteral: "You have no nudges for \(dayStr)."))
         }
         
         let timeFormatter = DateFormatter()
@@ -103,7 +103,7 @@ struct ListNudgesForDateIntent: AppIntent {
         if reminders.count == 1 {
             let reminder = reminders[0]
             let timeStr = reminder.dueAt.map { timeFormatter.string(from: $0) } ?? ""
-            return .result(dialog: "You have 1 nudge for \(dayStr): \(reminder.title) at \(timeStr).")
+            return .result(dialog: IntentDialog(stringLiteral: "You have 1 nudge for \(dayStr): \(reminder.title) at \(timeStr)."))
         }
         
         var list = "You have \(reminders.count) nudges for \(dayStr): "
@@ -116,7 +116,7 @@ struct ListNudgesForDateIntent: AppIntent {
             }
         }
         
-        return .result(dialog: list)
+        return .result(dialog: IntentDialog(stringLiteral: list))
     }
 }
 
@@ -151,10 +151,10 @@ struct CompleteNudgeIntent: AppIntent {
             let notificationID = "\(match.id.uuidString)-alert"
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
             
-            return .result(dialog: "Done! Marked \"\(match.title)\" as complete.")
+            return .result(dialog: IntentDialog(stringLiteral: "Done! Marked \(match.title) as complete."))
         }
         
-        return .result(dialog: "I couldn't find a reminder matching \"\(reminderTitle)\"")
+        return .result(dialog: IntentDialog(stringLiteral: "I couldn't find a reminder matching \(reminderTitle)"))
     }
 }
 
