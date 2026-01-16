@@ -223,8 +223,8 @@ struct SiriShortcutsInfoView: View {
                         Image(systemName: "list.bullet").font(.title3).foregroundStyle(.blue).frame(width: 28)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("List Reminders").font(.subheadline).fontWeight(.medium)
-                            Text("\"Hey Siri, list my Nudges\"").font(.caption).foregroundStyle(.secondary)
-                            Text("\"Hey Siri, what are my Nudges\"").font(.caption).foregroundStyle(.secondary)
+                            Text("\"Hey Siri, list reminders in Nudge\"").font(.caption).foregroundStyle(.secondary)
+                            Text("\"Hey Siri, what's on my Nudge\"").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     
