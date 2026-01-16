@@ -171,12 +171,6 @@ struct HelpView: View {
                     title: "\"Hey Siri, Nudge me\"",
                     description: "Create a reminder using only your voice. Siri asks what you want to be reminded about, then when to remind you."
                 )
-                
-                FeatureRow(
-                    icon: "list.bullet.circle.fill",
-                    title: "\"Hey Siri, list reminders in Nudge\"",
-                    description: "Siri asks which day (today, tomorrow, or this week), then reads your reminders. Also works with \"show reminders in Nudge\" or \"what's on my Nudge\"."
-                )
             } header: {
                 Label("Siri Shortcuts", systemImage: "apple.intelligence")
             } footer: {

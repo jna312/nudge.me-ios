@@ -218,36 +218,6 @@ struct SiriShortcutsInfoView: View {
             }
             
             Section {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "list.bullet").font(.title3).foregroundStyle(.blue).frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("List Reminders").font(.subheadline).fontWeight(.medium)
-                            Text("\"Hey Siri, list reminders in Nudge\"").font(.caption).foregroundStyle(.secondary)
-                            Text("\"Hey Siri, what's on my Nudge\"").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    
-                    Text("Siri will ask which day:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 40)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("• Today")
-                        Text("• Tomorrow")
-                        Text("• This Week")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 40)
-                }
-                .padding(.vertical, 4)
-            } header: {
-                Text("List Nudges")
-            }
-            
-            Section {
                 Link(destination: URL(string: "shortcuts://")!) {
                     Label("Open Shortcuts App", systemImage: "arrow.up.forward.app")
                 }
