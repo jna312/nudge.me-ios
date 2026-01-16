@@ -126,22 +126,21 @@ struct CompleteNudgeIntent: AppIntent {
 // MARK: - App Shortcuts Provider
 
 struct NudgeShortcuts: AppShortcutsProvider {
-    static var appShortcuts: [AppShortcut] {
+    @AppShortcutsBuilder static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: AddNudgeIntent(),
             phrases: [
-                "Nudge me",
-                "Nudge me in \(.applicationName)"
+                "Nudge me in \(.applicationName)",
+                "Add a nudge in \(.applicationName)"
             ],
             shortTitle: "Nudge Me",
             systemImageName: "plus.circle"
         )
-        
         AppShortcut(
             intent: ListNudgesIntent(),
             phrases: [
-                "Show my nudges",
-                "Show my nudges in \(.applicationName)"
+                "Show my nudges in \(.applicationName)",
+                "List my nudges in \(.applicationName)"
             ],
             shortTitle: "My Nudges",
             systemImageName: "list.bullet"
