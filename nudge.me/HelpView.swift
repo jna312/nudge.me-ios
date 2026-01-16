@@ -182,7 +182,7 @@ struct HelpView: View {
                 FeatureRow(
                     icon: "calendar",
                     title: "Calendar Sync",
-                    description: "Sync reminders to Apple Calendar as events. Enable in Settings."
+                    description: "Automatically sync reminders to Apple Calendar when you add, edit, or complete them. Enable in Settings."
                 )
                 
                 FeatureRow(

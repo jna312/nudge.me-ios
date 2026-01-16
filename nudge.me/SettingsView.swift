@@ -50,8 +50,6 @@ struct SettingsView: View {
                                         syncMessage += " (\(result.failed) failed)"
                                     }
                                     showingSyncAlert = true
-                                    // Start auto-sync
-                                    CalendarSync.shared.startAutoSync(frequency: settings.calendarSyncFrequency, context: modelContext)
                                 } else {
                                     syncMessage = "Calendar access denied. Please enable in Settings > Privacy > Calendars."
                                     showingSyncAlert = true
@@ -59,9 +57,6 @@ struct SettingsView: View {
                                 }
                                 isSyncing = false
                             }
-                        } else {
-                            // Stop auto-sync when disabled
-                            CalendarSync.shared.stopAutoSync()
                         }
                     }
                 
@@ -71,32 +66,11 @@ struct SettingsView: View {
                         Text("Syncing...").font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if settings.calendarSyncEnabled {
-                    Picker("Auto-sync frequency", selection: $settings.calendarSyncFrequency) {
-                        Text("Every 15 minutes").tag(15)
-                        Text("Every 30 minutes").tag(30)
-                        Text("Every hour").tag(60)
-                    }
-                    .onChange(of: settings.calendarSyncFrequency) { _, newFrequency in
-                        // Restart auto-sync with new frequency
-                        CalendarSync.shared.startAutoSync(frequency: newFrequency, context: modelContext)
-                    }
-                    
-                    Text("Reminders sync to a \"Nudge Reminders\" calendar in Apple Calendar.")
+                    Text("Reminders automatically sync to a \"Nudge Reminders\" calendar when you add, edit, or complete them.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    
-                    Button("Sync Now") {
-                        Task {
-                            isSyncing = true
-                            let result = await CalendarSync.shared.syncAllReminders(from: modelContext)
-                            syncMessage = "Synced \(result.synced) reminder\(result.synced == 1 ? "" : "s")"
-                            if result.failed > 0 { syncMessage += " (\(result.failed) failed)" }
-                            showingSyncAlert = true
-                            isSyncing = false
-                        }
-                    }
                 } else {
-                    Text("When enabled, reminders are added to Apple Calendar so you can see them alongside your events. A separate \"Nudge Reminders\" calendar is created.")
+                    Text("When enabled, reminders sync to Apple Calendar so you can see them alongside your events.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

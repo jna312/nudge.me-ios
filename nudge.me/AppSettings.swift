@@ -9,7 +9,6 @@ final class AppSettings: ObservableObject {
         static let dailyCloseoutMinutes = "dailyCloseoutMinutes"
         static let writingStyle = "writingStyle"
         static let calendarSyncEnabled = "calendarSyncEnabled"
-        static let calendarSyncFrequency = "calendarSyncFrequency"
         static let defaultEarlyAlertMinutes = "defaultEarlyAlertMinutes"
     }
 
@@ -33,11 +32,6 @@ final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(calendarSyncEnabled, forKey: Keys.calendarSyncEnabled) }
     }
 
-    // Calendar sync frequency in minutes (15, 30, 60)
-    @Published var calendarSyncFrequency: Int = 30 {
-        didSet { UserDefaults.standard.set(calendarSyncFrequency, forKey: Keys.calendarSyncFrequency) }
-    }
-
     // Default early alert (minutes before due time, 0 = none)
     @Published var defaultEarlyAlertMinutes: Int = 0 {
         didSet { UserDefaults.standard.set(defaultEarlyAlertMinutes, forKey: Keys.defaultEarlyAlertMinutes) }
@@ -56,9 +50,6 @@ final class AppSettings: ObservableObject {
         }
         if userDefaults.object(forKey: Keys.calendarSyncEnabled) != nil {
             self.calendarSyncEnabled = userDefaults.bool(forKey: Keys.calendarSyncEnabled)
-        }
-        if userDefaults.object(forKey: Keys.calendarSyncFrequency) != nil {
-            self.calendarSyncFrequency = userDefaults.integer(forKey: Keys.calendarSyncFrequency)
         }
         if userDefaults.object(forKey: Keys.defaultEarlyAlertMinutes) != nil {
             self.defaultEarlyAlertMinutes = userDefaults.integer(forKey: Keys.defaultEarlyAlertMinutes)
