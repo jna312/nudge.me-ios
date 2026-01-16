@@ -10,10 +10,10 @@ struct AddNudgeIntent: AppIntent {
     
     static var openAppWhenRun: Bool = false
     
-    @Parameter(title: "Reminder", requestValueDialog: "What do you want to be reminded about?")
+    @Parameter(title: "Reminder", requestValueDialog: IntentDialog("What do you want to be reminded about?"))
     var reminderTitle: String
     
-    @Parameter(title: "Time", requestValueDialog: "When should I remind you?")
+    @Parameter(title: "Time", requestValueDialog: IntentDialog("When should I remind you?"))
     var dueDate: Date
     
     static var parameterSummary: some ParameterSummary {
@@ -55,7 +55,7 @@ struct ListNudgesForDateIntent: AppIntent {
     
     static var openAppWhenRun: Bool = false
     
-    @Parameter(title: "Date", requestValueDialog: "Which day do you want to see nudges for?")
+    @Parameter(title: "Date", requestValueDialog: IntentDialog("Which day do you want to see nudges for?"))
     var targetDate: Date
     
     static var parameterSummary: some ParameterSummary {
