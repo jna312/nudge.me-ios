@@ -251,7 +251,7 @@ final class CaptureFlow: ObservableObject {
         if let duplicate = DuplicateDetector.findDuplicate(title: title, dueAt: dueAt, in: modelContext) {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
             let timeStr = formatTimeWithContext(duplicate.dueAt ?? dueAt)
-            prompt = String(localized: "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway? Say yes or no.")
+            prompt = String(localized: "You already have \"\(duplicate.title)\" at \(timeStr). Save anyway? Say YES or NO.")
             needsFollowUp = true
             return
         }
