@@ -123,42 +123,6 @@ struct CompleteNudgeIntent: AppIntent {
     }
 }
 
-// MARK: - Quick Add Intent (in 1 hour)
-
-struct QuickNudgeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Quick Nudge"
-    static var description = IntentDescription("Add a reminder for 1 hour from now")
-    
-    @Parameter(title: "What to remember")
-    var reminderTitle: String
-    
-    static var parameterSummary: some ParameterSummary {
-        Summary("Remind me to \(\.$reminderTitle) in 1 hour")
-    }
-    
-    @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        let config = ModelConfiguration(cloudKitDatabase: .automatic)
-        let container = try ModelContainer(for: ReminderItem.self, configurations: config)
-        let context = ModelContext(container)
-        
-        let dueDate = Date().addingTimeInterval(3600) // 1 hour
-        
-        let reminder = ReminderItem(
-            title: reminderTitle,
-            dueAt: dueDate,
-            alertAt: dueDate
-        )
-        
-        context.insert(reminder)
-        try context.save()
-        
-        await NotificationsManager.shared.schedule(reminder: reminder)
-        
-        return .result(dialog: "Got it! I'll remind you to \(reminderTitle) in 1 hour.")
-    }
-}
-
 // MARK: - App Shortcuts Provider
 
 struct NudgeShortcuts: AppShortcutsProvider {
@@ -166,34 +130,21 @@ struct NudgeShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AddNudgeIntent(),
             phrases: [
-                "Add a nudge in \(.applicationName)",
-                "Create a reminder in \(.applicationName)",
-                "Remind me in \(.applicationName)",
-                "New nudge in \(.applicationName)"
+                "Nudge me",
+                "Nudge me in \(.applicationName)"
             ],
-            shortTitle: "Add Nudge",
+            shortTitle: "Nudge Me",
             systemImageName: "plus.circle"
         )
         
         AppShortcut(
             intent: ListNudgesIntent(),
             phrases: [
-                "Show my nudges in \(.applicationName)",
-                "List reminders in \(.applicationName)",
-                "What are my nudges in \(.applicationName)"
+                "Show my nudges",
+                "Show my nudges in \(.applicationName)"
             ],
-            shortTitle: "List Nudges",
+            shortTitle: "My Nudges",
             systemImageName: "list.bullet"
-        )
-        
-        AppShortcut(
-            intent: QuickNudgeIntent(),
-            phrases: [
-                "Quick nudge in \(.applicationName)",
-                "Remind me in an hour in \(.applicationName)"
-            ],
-            shortTitle: "Quick Nudge",
-            systemImageName: "clock"
         )
     }
 }
