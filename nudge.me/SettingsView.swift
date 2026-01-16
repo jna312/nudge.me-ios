@@ -66,7 +66,7 @@ struct SettingsView: View {
                         Text("Syncing...").font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if settings.calendarSyncEnabled {
-                    Text("Reminders automatically sync to a \"Nudge Reminders\" calendar when you add, edit, or complete them.")
+                    Text("Reminders automatically sync to a \"Nudge Reminders\" calendar when you add, edit, or delete them.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
