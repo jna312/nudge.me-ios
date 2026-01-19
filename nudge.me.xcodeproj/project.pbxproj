@@ -392,8 +392,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
+				ENABLE_APP_INTENTS_SSU_TRAINING = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = nudge.me/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
@@ -403,6 +405,9 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					"remote-notification",
+				);
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -434,8 +439,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = DN4T8M72Z7;
+				ENABLE_APP_INTENTS_SSU_TRAINING = NO;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = nudge.me/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = nudge.me;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Nudge syncs your reminders to Calendar and checks for scheduling conflicts.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Nudge uses Face ID to protect your reminders from unauthorized access.";
@@ -445,6 +452,9 @@
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
+				INFOPLIST_KEY_UIBackgroundModes = (
+					"remote-notification",
+				);
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;

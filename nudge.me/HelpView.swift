@@ -40,7 +40,8 @@ struct HelpView: View {
                     examples: [
                         "\"Change dentist to 4 PM\"",
                         "\"Move groceries to tomorrow\"",
-                        "\"Reschedule meeting to 10 AM\""
+                        "\"Reschedule meeting to 10 AM\"",
+                        "\"Move groceries 30 minutes later\""
                     ]
                 )
                 
@@ -110,9 +111,21 @@ struct HelpView: View {
                 )
                 
                 FeatureRow(
+                    icon: "timer",
+                    title: "Snooze from Notification",
+                    description: "Snooze a reminder for 5, 15, or 30 minutes right from the notification."
+                )
+                
+                FeatureRow(
                     icon: "moon.fill",
                     title: "Daily Closeout",
                     description: "At 9 PM, Nudge reminds you to review any uncompleted reminders for the day."
+                )
+                
+                FeatureRow(
+                    icon: "sunrise.fill",
+                    title: "Morning Briefing",
+                    description: "Start your day with a quick summary of today's reminders."
                 )
             } header: {
                 Label("Notifications", systemImage: "bell.fill")
@@ -129,7 +142,7 @@ struct HelpView: View {
                 FeatureRow(
                     icon: "hand.draw",
                     title: "Swipe Actions",
-                    description: "Swipe left to delete, swipe right to snooze for 10 minutes."
+                    description: "Swipe left to delete, swipe right to snooze for 10 minutes, 30 minutes, 1 hour, or 1 day."
                 )
                 
                 FeatureRow(

@@ -10,6 +10,8 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject var settings: AppSettings
     @StateObject private var notificationsManager = NotificationsManager.shared
+    @StateObject private var sharedFlow = CaptureFlow()
+    @StateObject private var sharedTranscriber = SpeechTranscriber()
     @State private var selectedTab: AppTab = .speak
     @State private var showSettings = false
     @State private var shouldAutoStartMic = false
@@ -19,7 +21,7 @@ struct RootView: View {
         TabView(selection: $selectedTab) {
             // MAIN UI (Speak)
             NavigationStack {
-                ContentView(isSettingsOpen: $showSettings, autoStartMic: $shouldAutoStartMic)
+                ContentView(isSettingsOpen: $showSettings, autoStartMic: $shouldAutoStartMic, flow: sharedFlow, transcriber: sharedTranscriber)
                     .environmentObject(settings)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -43,7 +45,7 @@ struct RootView: View {
 
             // Reminders
             NavigationStack {
-                RemindersView(selectedReminderID: $selectedReminderID)
+                RemindersView(selectedReminderID: $selectedReminderID, flow: sharedFlow, transcriber: sharedTranscriber)
                     .environmentObject(settings)
             }
             .tabItem { Label("Reminders", systemImage: "list.bullet.circle") }
@@ -64,10 +66,16 @@ struct RootView: View {
             
             // Check for widget completions
             WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
+            
+            await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // Check for widget completions when app becomes active
             WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
+            
+            Task {
+                await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+            }
         }
     }
     

@@ -9,8 +9,8 @@ struct ContentView: View {
     @Binding var isSettingsOpen: Bool
     @Binding var autoStartMic: Bool
 
-    @StateObject private var flow = CaptureFlow()
-    @StateObject private var transcriber = SpeechTranscriber()
+    @ObservedObject var flow: CaptureFlow
+    @ObservedObject var transcriber: SpeechTranscriber
     @ObservedObject private var tipsManager = TipsManager.shared
     
     @State private var isHoldingMic = false
@@ -341,8 +341,19 @@ struct ContentView: View {
         // Safety timeout after 60 seconds (in case user forgets)
         DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
             if self.isAutoListening && self.transcriber.transcript.isEmpty {
+                // Save the current prompt if it was a follow-up question
+                let currentPrompt = self.flow.prompt
+                let wasFollowUp = self.flow.needsFollowUp
+                
                 self.stopRecording()
-                self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
+                
+                // If there was a follow-up question, keep it visible and add timeout note
+                if wasFollowUp {
+                    self.flow.prompt = currentPrompt + "\n" + String(localized: "(Hold mic to respond)")
+                    self.flow.needsFollowUp = true // Keep question state active
+                } else {
+                    self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
+                }
             }
         }
     }

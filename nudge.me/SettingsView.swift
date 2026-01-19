@@ -33,6 +33,34 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Morning Briefing") {
+                Toggle("Morning Briefing", isOn: $settings.morningBriefingEnabled)
+                    .onChange(of: settings.morningBriefingEnabled) { _, _ in
+                        Task {
+                            await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+                        }
+                    }
+
+                DatePicker(
+                    "Briefing Time",
+                    selection: Binding(
+                        get: { dateFromMinutesSinceMidnight(settings.morningBriefingMinutes) },
+                        set: { settings.morningBriefingMinutes = minutesFromMidnight($0) }
+                    ),
+                    displayedComponents: .hourAndMinute
+                )
+                .disabled(!settings.morningBriefingEnabled)
+                .onChange(of: settings.morningBriefingMinutes) { _, _ in
+                    Task {
+                        await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+                    }
+                }
+                
+                Text("Get a quick summary of today's nudges.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
             
             Section {
                 Toggle("Sync with Calendar", isOn: $settings.calendarSyncEnabled)

@@ -196,7 +196,7 @@ final class CaptureFlow: ObservableObject {
             
         case .confirmEdit(let reminder, let newTime, let newTitle):
             if parseYes(t) {
-                await applyEdit(reminder: reminder, newTime: newTime, newTitle: newTitle, modelContext: modelContext)
+                await applyEdit(reminder: reminder, newTime: newTime, newTitle: newTitle, settings: settings, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
                 prompt = String(localized: "Okay, no changes made.")
@@ -207,7 +207,7 @@ final class CaptureFlow: ObservableObject {
             
         case .confirmCancel(let reminders):
             if parseYes(t) {
-                await deleteReminders(reminders, modelContext: modelContext)
+                await deleteReminders(reminders, settings: settings, modelContext: modelContext)
             } else if parseNo(t) {
                 reset()
                 prompt = String(localized: "Okay, nothing deleted.")
@@ -215,7 +215,7 @@ final class CaptureFlow: ObservableObject {
                 prompt = String(localized: "Say \"yes\" to delete or \"no\" to keep.")
                 needsFollowUp = true
             }
-            
+
         case .calendarConflict(let title, let dueAt, let conflictingEvents):
             if parseMerge(t) {
                 // Merge: combine reminder with calendar event names
@@ -341,7 +341,7 @@ final class CaptureFlow: ObservableObject {
         }
     }
     
-    private func applyEdit(reminder: ReminderItem, newTime: Date?, newTitle: String?, modelContext: ModelContext) async {
+    private func applyEdit(reminder: ReminderItem, newTime: Date?, newTitle: String?, settings: AppSettings, modelContext: ModelContext) async {
         if let time = newTime {
             reminder.dueAt = time
             reminder.alertAt = time
@@ -355,11 +355,12 @@ final class CaptureFlow: ObservableObject {
         }
         
         modelContext.saveWithLogging(context: "Saving reminder")
+        await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
         reset()
         prompt = String(localized: "Updated! What's next?")
     }
     
-    private func deleteReminders(_ reminders: [ReminderItem], modelContext: ModelContext) async {
+    private func deleteReminders(_ reminders: [ReminderItem], settings: AppSettings, modelContext: ModelContext) async {
         for reminder in reminders {
             // Cancel notification
             let notificationID = "\(reminder.id.uuidString)-alert"
@@ -369,6 +370,7 @@ final class CaptureFlow: ObservableObject {
         }
         
         modelContext.saveWithLogging(context: "Saving reminder")
+        await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
         reset()
         
         if reminders.count == 1 {
@@ -555,6 +557,7 @@ final class CaptureFlow: ObservableObject {
 
         await NotificationsManager.shared.schedule(reminder: item)
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+        await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
 
         reset()
         

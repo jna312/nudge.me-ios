@@ -3,7 +3,10 @@ import SwiftData
 import UserNotifications
 struct RemindersView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedReminderID: UUID?
+    @ObservedObject var flow: CaptureFlow
+    @ObservedObject var transcriber: SpeechTranscriber
     @EnvironmentObject var settings: AppSettings
     @Query(
         filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
@@ -18,6 +21,10 @@ struct RemindersView: View {
     @State private var editingReminder: ReminderItem?
     @State private var showSettings = false
     @ObservedObject private var tipsManager = TipsManager.shared
+    @State private var isHoldingMic = false
+    @State private var isAutoListening = false
+    @State private var silenceTimer: Timer?
+    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     private let emptyStateMessages = [
         ("No Reminders", "checkmark.circle", "You're all caught up!"),
         ("All Clear", "sparkles", "Nothing to do. Enjoy the moment!"),
@@ -177,6 +184,9 @@ struct RemindersView: View {
             }
         }
         .onAppear {
+            // Pre-prepare haptic for instant response
+            hapticGenerator.prepare()
+            
             if emptyState == nil {
                 let pick = emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
                 emptyState = (title: pick.0, image: pick.1, description: pick.2)
@@ -205,7 +215,230 @@ struct RemindersView: View {
                 }
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            let isMicDisabled = showSettings || editingReminder != nil
+            
+            VStack(alignment: .trailing, spacing: 12) {
+                // Show prompt bubble only for follow-up questions or when recording
+                if flow.needsFollowUp || isHoldingMic || isAutoListening {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(flow.prompt)
+                            .font(.subheadline)
+                            .fontWeight(flow.needsFollowUp ? .medium : .regular)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                        
+                        if isHoldingMic || isAutoListening {
+                            Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        } else if flow.needsFollowUp {
+                            Text("Mic will auto-start...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(12)
+                    .frame(maxWidth: 280, alignment: .leading)
+                    .background(flow.needsFollowUp ? .ultraThickMaterial : .ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: flow.needsFollowUp ? .black.opacity(0.15) : .black.opacity(0.1), radius: flow.needsFollowUp ? 8 : 6)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .animation(.spring(response: 0.3), value: flow.needsFollowUp)
+                }
+                
+                // Floating mic button
+                ZStack {
+                    if isHoldingMic {
+                        Circle()
+                            .fill(Color.red.opacity(0.2))
+                            .frame(width: 110, height: 110)
+                            .scaleEffect(isHoldingMic ? 1.2 : 1.0)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
+                    }
+                    
+                    Circle()
+                        .fill(isHoldingMic ? Color.red : Color.blue)
+                        .frame(width: 72, height: 72)
+                        .shadow(color: isHoldingMic ? .red.opacity(0.4) : .blue.opacity(0.3), radius: 8, y: 4)
+                        .overlay {
+                            Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(.white)
+                                .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
+                        }
+                        .scaleEffect(isHoldingMic ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3), value: isHoldingMic)
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            if !isHoldingMic && !isMicDisabled {
+                                startRecording()
+                            }
+                        }
+                        .onEnded { _ in
+                            if isHoldingMic {
+                                stopRecording()
+                            }
+                        }
+                )
+                .disabled(isMicDisabled)
+                .opacity(isMicDisabled ? 0.5 : 1.0)
+            }
+            .padding(.trailing, 16)
+            .padding(.bottom, 16)
+        }
+        .onChange(of: flow.lastSavedReminder) { _, newReminder in
+            if let reminder = newReminder {
+                if settings.calendarSyncEnabled {
+                    Task {
+                        await CalendarSync.shared.syncToCalendar(reminder: reminder)
+                    }
+                }
+                WidgetDataProvider.shared.syncReminders(from: modelContext)
+            }
+        }
+        .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
+            if needsFollowUp {
+                // Same timing as Speak tab - start auto-listening after brief delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    // Only start if conditions are still valid
+                    if flow.needsFollowUp && !isHoldingMic && !showSettings && editingReminder == nil {
+                        startAutoListening()
+                    }
+                }
+            }
+        }
+        .onChange(of: transcriber.transcript) { _, newValue in
+            if isAutoListening && !newValue.isEmpty {
+                resetSilenceTimer()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // App became active - prepare haptics and check for pending follow-ups
+                hapticGenerator.prepare()
+                
+                // If stuck in recording state without auto-listening, reset
+                if isHoldingMic && !isAutoListening {
+                    isHoldingMic = false
+                    transcriber.reset()
+                }
+                
+                // If there's a pending follow-up question, restart auto-listening
+                if flow.needsFollowUp && !isHoldingMic && !showSettings && editingReminder == nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        if flow.needsFollowUp && !isHoldingMic {
+                            startAutoListening()
+                        }
+                    }
+                }
+            } else if newPhase == .background {
+                if isHoldingMic {
+                    stopRecording()
+                }
+                silenceTimer?.invalidate()
+                silenceTimer = nil
+                isAutoListening = false
+            }
+        }
     }
+    
+    // MARK: - Mic Recording
+    
+    private func startRecording() {
+        isHoldingMic = true
+        transcriber.transcript = ""
+        hapticGenerator.impactOccurred()
+        hapticGenerator.prepare()
+        
+        do {
+            try transcriber.start()
+        } catch {
+            isHoldingMic = false
+            transcriber.reset()
+            let errorGenerator = UINotificationFeedbackGenerator()
+            errorGenerator.notificationOccurred(.error)
+        }
+    }
+    
+    private func stopRecording() {
+        isAutoListening = false
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        isHoldingMic = false
+        transcriber.stop()
+        
+        let finalText = transcriber.transcript
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        
+        guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            transcriber.transcript = ""
+            return
+        }
+        
+        Task {
+            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            transcriber.transcript = ""
+        }
+    }
+    
+    private func startAutoListening() {
+        guard !isHoldingMic && !showSettings && editingReminder == nil else { return }
+        
+        isHoldingMic = true
+        isAutoListening = true
+        transcriber.transcript = ""
+        
+        do {
+            try transcriber.start()
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+        } catch {
+            isHoldingMic = false
+            isAutoListening = false
+            transcriber.reset()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            if self.isAutoListening && self.transcriber.transcript.isEmpty {
+                // Save the current prompt if it was a follow-up question
+                let currentPrompt = self.flow.prompt
+                let wasFollowUp = self.flow.needsFollowUp
+                
+                self.stopRecording()
+                
+                // If there was a follow-up question, keep it visible and add timeout note
+                if wasFollowUp {
+                    self.flow.prompt = currentPrompt + "\n" + String(localized: "(Tap mic to respond)")
+                    self.flow.needsFollowUp = true // Keep question state active
+                } else {
+                    self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
+                }
+            }
+        }
+    }
+    
+    private func resetSilenceTimer() {
+        silenceTimer?.invalidate()
+        
+        let hasSpoken = !transcriber.transcript.isEmpty
+        guard hasSpoken else { return }
+        
+        let silenceTimeout: TimeInterval = 2.0
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { _ in
+            DispatchQueue.main.async {
+                if self.isAutoListening {
+                    self.stopRecording()
+                }
+            }
+        }
+    }
+
     private func deleteReminder(_ reminder: ReminderItem) {
         if settings.calendarSyncEnabled {
             Task {

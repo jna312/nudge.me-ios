@@ -37,6 +37,7 @@ struct AddNudgeIntent: AppIntent {
         
         // Schedule notification
         await NotificationsManager.shared.schedule(reminder: reminder)
+        await MorningBriefingManager.shared.scheduleUsingStoredSettings()
         
         let formatter = DateFormatter()
         formatter.timeStyle = .short

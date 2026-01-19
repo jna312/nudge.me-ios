@@ -7,6 +7,8 @@ final class AppSettings: ObservableObject {
     private enum Keys {
         static let didCompleteOnboarding = "didCompleteOnboarding"
         static let dailyCloseoutMinutes = "dailyCloseoutMinutes"
+        static let morningBriefingEnabled = "morningBriefingEnabled"
+        static let morningBriefingMinutes = "morningBriefingMinutes"
         static let writingStyle = "writingStyle"
         static let calendarSyncEnabled = "calendarSyncEnabled"
         static let defaultEarlyAlertMinutes = "defaultEarlyAlertMinutes"
@@ -20,6 +22,14 @@ final class AppSettings: ObservableObject {
     // Times stored as minutes-from-midnight
     @Published var dailyCloseoutMinutes: Int = 21 * 60 { // 9:00 PM
         didSet { UserDefaults.standard.set(dailyCloseoutMinutes, forKey: Keys.dailyCloseoutMinutes) }
+    }
+    
+    @Published var morningBriefingEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(morningBriefingEnabled, forKey: Keys.morningBriefingEnabled) }
+    }
+    
+    @Published var morningBriefingMinutes: Int = 8 * 60 { // 8:00 AM
+        didSet { UserDefaults.standard.set(morningBriefingMinutes, forKey: Keys.morningBriefingMinutes) }
     }
 
     // sentence | title | caps
@@ -44,6 +54,12 @@ final class AppSettings: ObservableObject {
         }
         if userDefaults.object(forKey: Keys.dailyCloseoutMinutes) != nil {
             self.dailyCloseoutMinutes = userDefaults.integer(forKey: Keys.dailyCloseoutMinutes)
+        }
+        if userDefaults.object(forKey: Keys.morningBriefingEnabled) != nil {
+            self.morningBriefingEnabled = userDefaults.bool(forKey: Keys.morningBriefingEnabled)
+        }
+        if userDefaults.object(forKey: Keys.morningBriefingMinutes) != nil {
+            self.morningBriefingMinutes = userDefaults.integer(forKey: Keys.morningBriefingMinutes)
         }
         if let style = userDefaults.string(forKey: Keys.writingStyle) {
             self.writingStyle = style

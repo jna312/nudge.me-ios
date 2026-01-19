@@ -19,6 +19,8 @@ enum ReminderActions {
         item.status = .completed
         item.completedAt = .now
         context.saveWithLogging(context: "Marking reminder done")
+        
+        await MorningBriefingManager.shared.scheduleUsingStoredSettings()
     }
 
     static func snooze(reminderID: UUID, minutes: Int) async {
@@ -43,6 +45,7 @@ enum ReminderActions {
         context.saveWithLogging(context: "Snoozing reminder")
         
         await NotificationsManager.shared.schedule(reminder: item)
+        await MorningBriefingManager.shared.scheduleUsingStoredSettings()
     }
 
     static func markAllOpenDoneForToday() async {

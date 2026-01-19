@@ -54,12 +54,14 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
     }
 
     func registerCategories() {
-        let done = UNNotificationAction(identifier: "REMINDER_DONE", title: "Done", options: [])
-        let snooze10 = UNNotificationAction(identifier: "REMINDER_SNOOZE_10", title: "Snooze 10m", options: [])
+        let done = UNNotificationAction(identifier: "REMINDER_DONE", title: String(localized: "Done"), options: [])
+        let snooze5 = UNNotificationAction(identifier: "REMINDER_SNOOZE_5", title: String(localized: "Snooze 5m"), options: [])
+        let snooze15 = UNNotificationAction(identifier: "REMINDER_SNOOZE_15", title: String(localized: "Snooze 15m"), options: [])
+        let snooze30 = UNNotificationAction(identifier: "REMINDER_SNOOZE_30", title: String(localized: "Snooze 30m"), options: [])
 
         let reminderCategory = UNNotificationCategory(
             identifier: reminderCategoryIdentifier,
-            actions: [done, snooze10],
+            actions: [done, snooze5, snooze15, snooze30],
             intentIdentifiers: [],
             options: []
         )
@@ -99,6 +101,27 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
                 await MainActor.run {
                     shouldNavigateToReminders = true
                 }
+                return
+            }
+
+            guard let idString = response.notification.request.content.userInfo["reminderID"] as? String,
+                  let reminderID = UUID(uuidString: idString) else { return }
+
+            switch actionID {
+            case "REMINDER_DONE":
+                await ReminderActions.markDone(reminderID: reminderID)
+                await MorningBriefingManager.shared.scheduleUsingStoredSettings()
+            case "REMINDER_SNOOZE_5":
+                await ReminderActions.snooze(reminderID: reminderID, minutes: 5)
+                await MorningBriefingManager.shared.scheduleUsingStoredSettings()
+            case "REMINDER_SNOOZE_15":
+                await ReminderActions.snooze(reminderID: reminderID, minutes: 15)
+                await MorningBriefingManager.shared.scheduleUsingStoredSettings()
+            case "REMINDER_SNOOZE_30":
+                await ReminderActions.snooze(reminderID: reminderID, minutes: 30)
+                await MorningBriefingManager.shared.scheduleUsingStoredSettings()
+            default:
+                break
             }
         }
     }

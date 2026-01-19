@@ -2,35 +2,51 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleDisplayName</key>
-    <string>nudge.me</string>
-    <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Nudge checks your calendar to warn you about scheduling conflicts with your reminders.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Nudge uses the microphone to capture your voice reminders.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Nudge uses speech recognition to convert your voice into reminder text.</string>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-    </array>
-    <key>UIRequiresFullScreen</key>
-    <true/>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>nudgeme</string>
-            </array>
-            <key>CFBundleURLName</key>
-            <string>com.nudge.me</string>
-        </dict>
-    </array>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleDisplayName</key>
+	<string>nudge.me</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.nudge.me</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>nudgeme</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Nudge checks your calendar to warn you about scheduling conflicts with your reminders.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Nudge uses the microphone to capture your voice reminders.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Nudge uses speech recognition to convert your voice into reminder text.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
 </dict>
 </plist>
