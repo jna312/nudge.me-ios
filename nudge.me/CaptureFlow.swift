@@ -499,14 +499,19 @@ final class CaptureFlow: ObservableObject {
         let lower = s.lowercased()
         return lower.contains("change time") || lower.contains("different time") || 
                lower.contains("another time") || lower.contains("reschedule") ||
-               lower.contains("new time") || lower.contains("pick another")
+               lower.contains("new time") || lower.contains("pick another") ||
+               lower.contains("change it") || lower.contains("move it") ||
+               lower.contains("different") || lower.contains("change")
     }
     
     private func parseSaveAnyway(_ s: String) -> Bool {
         let lower = s.lowercased()
         return lower.contains("save anyway") || lower.contains("save it anyway") ||
                lower.contains("keep it") || lower.contains("save both") ||
-               lower.contains("that's fine") || lower.contains("it's fine")
+               lower.contains("that's fine") || lower.contains("it's fine") ||
+               lower.contains("go ahead") || lower.contains("do it") ||
+               lower.contains("proceed") || lower.contains("save it") ||
+               lower == "save" || lower == "ok" || lower == "okay"
     }
     
     private func parseCancel(_ s: String) -> Bool {

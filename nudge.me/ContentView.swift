@@ -236,9 +236,19 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                // App became active - ensure audio system is ready
+                // App became active - reset state and ensure audio system is ready
+                if isHoldingMic && !isAutoListening {
+                    // Stuck in recording state - reset
+                    isHoldingMic = false
+                    transcriber.reset()
+                }
                 transcriber.warmUp()
                 hapticGenerator.prepare()
+                
+                // Reset flow if it's been stuck
+                if flow.needsFollowUp {
+                    flow.needsFollowUp = false
+                }
             } else if newPhase == .background {
                 // App going to background - clean up
                 if isHoldingMic {
@@ -246,6 +256,7 @@ struct ContentView: View {
                 }
                 silenceTimer?.invalidate()
                 silenceTimer = nil
+                isAutoListening = false
             }
         }
     }
