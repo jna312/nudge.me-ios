@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var showUndoBanner = false
     @State private var isAutoListening = false
     @State private var silenceTimer: Timer?
+    @State private var autoListenTimeoutTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -116,7 +117,7 @@ struct ContentView: View {
                             .foregroundStyle(.green)
                         
                         Text("Saved: \(reminder.title)")
-                            .lineLimit(1)
+                            .lineLimit(2)
                         
                         Spacer()
                         
@@ -256,6 +257,8 @@ struct ContentView: View {
                 }
                 silenceTimer?.invalidate()
                 silenceTimer = nil
+                autoListenTimeoutTask?.cancel()
+                autoListenTimeoutTask = nil
                 isAutoListening = false
             }
         }
@@ -290,6 +293,8 @@ struct ContentView: View {
         isAutoListening = false
         silenceTimer?.invalidate()
         silenceTimer = nil
+        autoListenTimeoutTask?.cancel()
+        autoListenTimeoutTask = nil
         isHoldingMic = false
         transcriber.stop()
         
@@ -338,8 +343,12 @@ struct ContentView: View {
             transcriber.reset()
         }
         
-        // Safety timeout after 60 seconds (in case user forgets)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+        // Safety timeout after 60 seconds (in case user forgets) - cancellable
+        autoListenTimeoutTask?.cancel()
+        autoListenTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+            guard !Task.isCancelled else { return }
+            
             if self.isAutoListening && self.transcriber.transcript.isEmpty {
                 // Save the current prompt if it was a follow-up question
                 let currentPrompt = self.flow.prompt

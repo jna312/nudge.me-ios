@@ -24,6 +24,7 @@ struct RemindersView: View {
     @State private var isHoldingMic = false
     @State private var isAutoListening = false
     @State private var silenceTimer: Timer?
+    @State private var autoListenTimeoutTask: Task<Void, Never>?
     @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     private let emptyStateMessages = [
         ("No Reminders", "checkmark.circle", "You're all caught up!"),
@@ -232,7 +233,7 @@ struct RemindersView: View {
                             Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(2)
+                                .lineLimit(4)
                         } else if flow.needsFollowUp {
                             Text("Mic will auto-start...")
                                 .font(.caption)
@@ -240,7 +241,7 @@ struct RemindersView: View {
                         }
                     }
                     .padding(12)
-                    .frame(maxWidth: 280, alignment: .leading)
+                    .frame(maxWidth: min(UIScreen.main.bounds.width * 0.75, 320), alignment: .leading)
                     .background(flow.needsFollowUp ? .ultraThickMaterial : .ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: flow.needsFollowUp ? .black.opacity(0.15) : .black.opacity(0.1), radius: flow.needsFollowUp ? 8 : 6)
@@ -341,6 +342,8 @@ struct RemindersView: View {
                 }
                 silenceTimer?.invalidate()
                 silenceTimer = nil
+                autoListenTimeoutTask?.cancel()
+                autoListenTimeoutTask = nil
                 isAutoListening = false
             }
         }
@@ -368,6 +371,8 @@ struct RemindersView: View {
         isAutoListening = false
         silenceTimer?.invalidate()
         silenceTimer = nil
+        autoListenTimeoutTask?.cancel()
+        autoListenTimeoutTask = nil
         isHoldingMic = false
         transcriber.stop()
         
@@ -404,7 +409,12 @@ struct RemindersView: View {
             transcriber.reset()
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+        // Safety timeout after 60 seconds (in case user forgets) - cancellable
+        autoListenTimeoutTask?.cancel()
+        autoListenTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+            guard !Task.isCancelled else { return }
+            
             if self.isAutoListening && self.transcriber.transcript.isEmpty {
                 // Save the current prompt if it was a follow-up question
                 let currentPrompt = self.flow.prompt
@@ -515,7 +525,7 @@ struct ReminderRow: View {
             Spacer()
             Circle()
                 .fill(urgencyColor)
-                .frame(width: 8, height: 8)
+                .frame(width: 10, height: 10)
         }
         .padding(.vertical, 4)
     }
