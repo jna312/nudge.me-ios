@@ -82,6 +82,13 @@ final class CaptureFlow: ObservableObject {
             break // Continue with normal flow
         }
         
+        // Universal cancel - works at any step except idle
+        if step != .idle && parseCancel(t) {
+            reset()
+            prompt = String(localized: "Cancelled. What else?")
+            return
+        }
+        
         // Handle based on current step
         switch step {
 
