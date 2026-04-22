@@ -7,6 +7,109 @@ enum ParseResult {
 }
 
 final class ReminderParser {
+    // MARK: - Cached regexes (compiled once, reused)
+
+    private static let earlyAlertPatterns: [(NSRegularExpression, Int?, Bool)] = {
+        let specs: [(String, Int?)] = [
+            (#"with\s+(?:a\s+)?(\d+)\s*(?:minute|min)\s*(?:warning|alert|heads?\s*up)"#, nil),
+            (#"with\s+(?:a\s+)?(\d+)\s*hour\s*(?:warning|alert|heads?\s*up)"#, nil),
+            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*(?:minute|min)s?\s*(?:before|early|earlier)"#, nil),
+            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*hours?\s*(?:before|early|earlier)"#, nil),
+            (#"with\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#, 15),
+        ]
+        return specs.compactMap { pattern, defaultMinutes in
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+            return (re, defaultMinutes, pattern.contains("hour"))
+        }
+    }()
+
+    private static let relativeTimeRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours|day|days)"#, options: [.caseInsensitive])
+    }()
+
+    private static let monthNames: [(String, Int)] = [
+        ("january", 1), ("jan", 1), ("february", 2), ("feb", 2),
+        ("march", 3), ("mar", 3), ("april", 4), ("apr", 4),
+        ("may", 5), ("june", 6), ("jun", 6), ("july", 7), ("jul", 7),
+        ("august", 8), ("aug", 8), ("september", 9), ("sep", 9), ("sept", 9),
+        ("october", 10), ("oct", 10), ("november", 11), ("nov", 11),
+        ("december", 12), ("dec", 12)
+    ]
+
+    private static let monthDayRegexes: [(NSRegularExpression, Int)] = {
+        monthNames.compactMap { monthName, monthNum in
+            let pattern = #"\b"# + monthName + #"\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+            return (re, monthNum)
+        }
+    }()
+
+    private static let slashDateRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?"#, options: [])
+    }()
+
+    private static let explicitTimeCheckRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(?:at|by)\s*\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#, options: [.caseInsensitive])
+    }()
+
+    private static let explicitTimeParseRegex: NSRegularExpression? = {
+        try? NSRegularExpression(pattern: #"(?:at|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?"#, options: [.caseInsensitive])
+    }()
+
+    private static let stripSchedulingPatterns: [String] = [
+        // Strip "remind me" variations at start
+        #"(?i)^\s*remind\s+me\s+(?:to|about|on|that)\s+"#,
+        #"(?i)^\s*remind\s+me\s+"#,
+        #"(?i)^\s*don'?t\s+forget\s+(?:to\s+)?"#,
+        #"(?i)^\s*don'?t\s+let\s+me\s+forget\s+(?:to\s+)?"#,
+        #"(?i)^\s*i\s+need\s+to\s+"#,
+        #"(?i)^\s*i\s+have\s+to\s+"#,
+        #"(?i)^\s*i\s+should\s+"#,
+        #"(?i)^\s*i\s+want\s+to\s+"#,
+
+        // Strip "I have a/an..." variations
+        #"(?i)^\s*i\s+have\s+(?:a|an)\s+"#,
+        #"(?i)^\s*i(?:'ve|'ve)\s+got\s+(?:a|an)\s+"#,
+        #"(?i)^\s*i\s+got\s+(?:a|an)\s+"#,
+        #"(?i)^\s*there(?:'s|'s|s)\s+(?:a|an)\s+"#,
+        #"(?i)^\s*got\s+(?:a|an)\s+"#,
+
+        // Specific dates: "on monday, january 19" or "january 19"
+        #"(?i)\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s*"#,
+        #"(?i)\bon\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
+        #"(?i)\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
+
+        // Weekday names
+        #"(?i)\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s*"#,
+        #"(?i)\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"#,
+
+        // Slash dates
+        #"(?i)\bon\s+\d{1,2}/\d{1,2}(?:/\d{2,4})?\b"#,
+        #"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b"#,
+
+        // Other time references
+        #"(?i)\btomorrow\b"#,
+        #"(?i)\btoday\b"#,
+        #"(?i)\btonight\b"#,
+        #"(?i)\b(?:this\s+)?morning\b"#,
+        #"(?i)\b(?:this\s+)?afternoon\b"#,
+        #"(?i)\b(?:this\s+)?evening\b"#,
+        #"(?i)\b(?:at\s+)?night\b"#,
+        #"(?i)\bin\s+\d+\s*(?:minute|minutes|hour|hours|day|days)\b"#,
+
+        // Times: "at 11 am" or "by 3pm"
+        #"(?i)\b(?:at|by)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\b"#,
+
+        // Early alert phrases
+        #"(?i)\bwith\s+(?:a\s+)?\d+\s*(?:minute|min|hour)s?\s*(?:warning|alert|heads?\s*up)"#,
+        #"(?i)\bwith\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#,
+        #"(?i)\b(?:warn|alert|remind)\s+me\s+\d+\s*(?:minute|min|hour)s?\s*(?:before|early|earlier)"#,
+
+        // Clean up "to" or "that" at the start of what remains
+        #"(?i)^\s*that\s+"#,
+        #"(?i)^\s*to\s+"#,
+    ]
+
     func parse(_ text: String) -> ParseResult {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return .needsWhen(title: "", raw: text) }
@@ -22,7 +125,6 @@ final class ReminderParser {
                 rawTranscript: cleaned,
                 title: finalTitle,
                 dueAt: relativeDate,
-                wantsAlert1: true,
                 earlyAlertMinutes: earlyAlertMinutes
             ))
         }
@@ -37,7 +139,6 @@ final class ReminderParser {
                     rawTranscript: cleaned,
                     title: finalTitle,
                     dueAt: due,
-                    wantsAlert1: true,
                     earlyAlertMinutes: earlyAlertMinutes
                 ))
             }
@@ -53,22 +154,13 @@ final class ReminderParser {
     // MARK: - Early Alert Parsing
     
     private func parseEarlyAlertPhrase(_ lower: String) -> Int? {
-        let patterns: [(String, Int?)] = [
-            (#"with\s+(?:a\s+)?(\d+)\s*(?:minute|min)\s*(?:warning|alert|heads?\s*up)"#, nil),
-            (#"with\s+(?:a\s+)?(\d+)\s*hour\s*(?:warning|alert|heads?\s*up)"#, nil),
-            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*(?:minute|min)s?\s*(?:before|early|earlier)"#, nil),
-            (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*hours?\s*(?:before|early|earlier)"#, nil),
-            (#"with\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#, 15),
-        ]
-        
-        for (pattern, defaultMinutes) in patterns {
-            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+        for (re, defaultMinutes, isHour) in Self.earlyAlertPatterns {
             let range = NSRange(lower.startIndex..., in: lower)
-            
+
             if let match = re.firstMatch(in: lower, range: range) {
                 if match.numberOfRanges > 1, let numRange = Range(match.range(at: 1), in: lower) {
                     if let num = Int(lower[numRange]) {
-                        return pattern.contains("hour") ? num * 60 : num
+                        return isHour ? num * 60 : num
                     }
                 }
                 if let defaultMinutes = defaultMinutes { return defaultMinutes }
@@ -80,8 +172,7 @@ final class ReminderParser {
     // MARK: - Relative time
     
     private func parseRelativeTime(_ lower: String) -> Date? {
-        let pattern = #"(?:in)\s+(\d+)\s*(minute|minutes|hour|hours|day|days)"#
-        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        guard let re = Self.relativeTimeRegex else { return nil }
         let range = NSRange(lower.startIndex..., in: lower)
         
         guard let m = re.firstMatch(in: lower, range: range),
@@ -126,28 +217,17 @@ final class ReminderParser {
         let cal = Calendar.current
         let now = Date()
         let currentYear = cal.component(.year, from: now)
-        
-        let months: [(String, Int)] = [
-            ("january", 1), ("jan", 1), ("february", 2), ("feb", 2),
-            ("march", 3), ("mar", 3), ("april", 4), ("apr", 4),
-            ("may", 5), ("june", 6), ("jun", 6), ("july", 7), ("jul", 7),
-            ("august", 8), ("aug", 8), ("september", 9), ("sep", 9), ("sept", 9),
-            ("october", 10), ("oct", 10), ("november", 11), ("nov", 11),
-            ("december", 12), ("dec", 12)
-        ]
-        
-        for (monthName, monthNum) in months {
-            let pattern = #"\b"# + monthName + #"\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
-            if let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
-               let match = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
+
+        for (re, monthNum) in Self.monthDayRegexes {
+            if let match = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
                let dayRange = Range(match.range(at: 1), in: lower),
                let day = Int(lower[dayRange]) {
-                
+
                 var comps = DateComponents()
                 comps.year = currentYear
                 comps.month = monthNum
                 comps.day = day
-                
+
                 if let date = cal.date(from: comps) {
                     if date < now {
                         comps.year = currentYear + 1
@@ -157,9 +237,8 @@ final class ReminderParser {
                 }
             }
         }
-        
-        let slashPattern = #"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?"#
-        if let re = try? NSRegularExpression(pattern: slashPattern, options: []),
+
+        if let re = Self.slashDateRegex,
            let match = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
            let monthRange = Range(match.range(at: 1), in: lower),
            let dayRange = Range(match.range(at: 2), in: lower),
@@ -221,14 +300,12 @@ final class ReminderParser {
     // MARK: - Explicit time
     
     private func hasExplicitTimePattern(_ lower: String) -> Bool {
-        let pattern = #"(?:at|by)\s*\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?"#
-        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return false }
+        guard let re = Self.explicitTimeCheckRegex else { return false }
         return re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)) != nil
     }
-    
+
     private func parseExplicitTime(_ lower: String, baseDate: Date) -> Date? {
-        let pattern = #"(?:at|by)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?"#
-        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        guard let re = Self.explicitTimeParseRegex else { return nil }
         
         guard let m = re.firstMatch(in: lower, range: NSRange(lower.startIndex..., in: lower)),
               let hrR = Range(m.range(at: 1), in: lower) else { return nil }
@@ -262,62 +339,9 @@ final class ReminderParser {
 
     private func stripSchedulingPhrases(from s: String) -> String {
         var t = s
-        let patterns = [
-            // Strip "remind me" variations at start
-            #"(?i)^\s*remind\s+me\s+(?:to|about|on|that)\s+"#,
-            #"(?i)^\s*remind\s+me\s+"#,
-            #"(?i)^\s*don'?t\s+forget\s+(?:to\s+)?"#,
-            #"(?i)^\s*don'?t\s+let\s+me\s+forget\s+(?:to\s+)?"#,
-            #"(?i)^\s*i\s+need\s+to\s+"#,
-            #"(?i)^\s*i\s+have\s+to\s+"#,
-            #"(?i)^\s*i\s+should\s+"#,
-            #"(?i)^\s*i\s+want\s+to\s+"#,
-            
-            // Strip "I have a/an..." variations
-            #"(?i)^\s*i\s+have\s+(?:a|an)\s+"#,
-            #"(?i)^\s*i(?:'ve|'ve)\s+got\s+(?:a|an)\s+"#,
-            #"(?i)^\s*i\s+got\s+(?:a|an)\s+"#,
-            #"(?i)^\s*there(?:'s|'s|s)\s+(?:a|an)\s+"#,
-            #"(?i)^\s*got\s+(?:a|an)\s+"#,
-            
-            // Specific dates: "on monday, january 19" or "january 19"
-            #"(?i)\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s*"#,
-            #"(?i)\bon\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
-            #"(?i)\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\s+\d{1,2}(?:st|nd|rd|th)?\b"#,
-            
-            // Weekday names
-            #"(?i)\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s*"#,
-            #"(?i)\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"#,
-            
-            // Slash dates
-            #"(?i)\bon\s+\d{1,2}/\d{1,2}(?:/\d{2,4})?\b"#,
-            #"\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b"#,
-            
-            // Other time references
-            #"(?i)\btomorrow\b"#,
-            #"(?i)\btoday\b"#,
-            #"(?i)\btonight\b"#,
-            #"(?i)\b(?:this\s+)?morning\b"#,
-            #"(?i)\b(?:this\s+)?afternoon\b"#,
-            #"(?i)\b(?:this\s+)?evening\b"#,
-            #"(?i)\b(?:at\s+)?night\b"#,
-            #"(?i)\bin\s+\d+\s*(?:minute|minutes|hour|hours|day|days)\b"#,
-            
-            // Times: "at 11 am" or "by 3pm"
-            #"(?i)\b(?:at|by)\s*\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?\b"#,
-            
-            // Early alert phrases
-            #"(?i)\bwith\s+(?:a\s+)?\d+\s*(?:minute|min|hour)s?\s*(?:warning|alert|heads?\s*up)"#,
-            #"(?i)\bwith\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#,
-            #"(?i)\b(?:warn|alert|remind)\s+me\s+\d+\s*(?:minute|min|hour)s?\s*(?:before|early|earlier)"#,
-            
-            // Clean up "to" or "that" at the start of what remains
-            #"(?i)^\s*that\s+"#,
-            #"(?i)^\s*to\s+"#,
-        ]
         // Run multiple passes to handle nested phrases like "remind me that I have an..."
         for _ in 1...3 {
-            for p in patterns { 
+            for p in Self.stripSchedulingPatterns {
                 t = t.replacingOccurrences(of: p, with: "", options: .regularExpression)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }

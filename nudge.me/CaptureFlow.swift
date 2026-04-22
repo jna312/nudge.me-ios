@@ -91,152 +91,219 @@ final class CaptureFlow: ObservableObject {
         
         // Handle based on current step
         switch step {
-
         case .idle:
-            let result = parser.parse(t)
-
-            switch result {
-            case .complete(let draft):
-                if let due = draft.dueAt {
-                    await prepareToSave(
-                        title: draft.title,
-                        dueAt: due,
-                        earlyAlertMinutes: draft.earlyAlertMinutes,
-                        settings: settings,
-                        modelContext: modelContext
-                    )
-                } else {
-                    step = .gotTask(title: draft.title)
-                    timeSuggestions = TimeSuggestionEngine.getSuggestions(for: draft.title, in: modelContext)
-                    prompt = String(localized: "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")")
-                }
-
-            case .needsWhen(let title, _):
-                step = .gotTask(title: title)
-                timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = String(localized: "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")")
-                needsFollowUp = true
-                
-            case .needsTime(let title, let baseDate, let periodHint):
-                step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
-                prompt = promptForTime(periodHint: periodHint)
-                needsFollowUp = true
-            }
+            await handleIdleTranscript(t, settings: settings, modelContext: modelContext)
 
         case .gotTask(let title):
-            // First try to parse just a time (e.g., "8 am", "3:30 pm")
-            if let time = parseTimeOnly(t) {
-                let now = Date()
-                var due = combineDateAndTime(baseDate: now, time: time)
-                // If time already passed today, use tomorrow
-                if due <= now {
-                    due = Calendar.current.date(byAdding: .day, value: 1, to: due) ?? due
-                }
+            await handleGotTaskTranscript(t, title: title, settings: settings, modelContext: modelContext)
+
+        case .needsTime(let title, let baseDate, _):
+            await handleNeedsTimeTranscript(t, title: title, baseDate: baseDate, settings: settings, modelContext: modelContext)
+
+        case .confirmDuplicate(let title, let dueAt, _):
+            await handleConfirmDuplicateTranscript(t, title: title, dueAt: dueAt, settings: settings, modelContext: modelContext)
+
+        case .confirmEdit(let reminder, let newTime, let newTitle):
+            await handleConfirmEditTranscript(t, reminder: reminder, newTime: newTime, newTitle: newTitle, settings: settings, modelContext: modelContext)
+
+        case .confirmCancel(let reminders):
+            await handleConfirmCancelTranscript(t, reminders: reminders, settings: settings, modelContext: modelContext)
+
+        case .calendarConflict(let title, let dueAt, let conflictingEvents):
+            await handleCalendarConflictTranscript(t, title: title, dueAt: dueAt, conflictingEvents: conflictingEvents, settings: settings, modelContext: modelContext)
+        }
+    }
+
+    private func handleIdleTranscript(
+        _ transcript: String,
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        let result = parser.parse(transcript)
+
+        switch result {
+        case .complete(let draft):
+            if let due = draft.dueAt {
                 await prepareToSave(
-                    title: title,
+                    title: draft.title,
                     dueAt: due,
+                    earlyAlertMinutes: draft.earlyAlertMinutes,
                     settings: settings,
                     modelContext: modelContext
                 )
-                return
+            } else {
+                step = .gotTask(title: draft.title)
+                timeSuggestions = TimeSuggestionEngine.getSuggestions(for: draft.title, in: modelContext)
+                prompt = String(localized: "When? (e.g. \"at 3 PM\" or \"in 30 minutes\")")
             }
-            
-            // Otherwise try full parser (for "tomorrow at 3pm", "in 30 minutes", etc.)
-            let result = parser.parse(t)
-            
-            switch result {
-            case .complete(let draft):
-                if let due = draft.dueAt {
-                    await prepareToSave(
-                        title: title,
-                        dueAt: due,
-                        earlyAlertMinutes: draft.earlyAlertMinutes,
-                        settings: settings,
-                        modelContext: modelContext
-                    )
-                } else {
-                    prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
-                    needsFollowUp = true
-                }
-                
-            case .needsTime(_, let baseDate, let periodHint):
-                step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
-                prompt = promptForTime(periodHint: periodHint)
-                needsFollowUp = true
-                
-            case .needsWhen:
+
+        case .needsWhen(let title, _):
+            step = .gotTask(title: title)
+            timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
+            prompt = String(localized: "When? (e.g. \"tomorrow at 3 PM\" or \"in 30 minutes\")")
+            needsFollowUp = true
+
+        case .needsTime(let title, let baseDate, let periodHint):
+            step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
+            prompt = promptForTime(periodHint: periodHint)
+            needsFollowUp = true
+        }
+    }
+
+    private func handleGotTaskTranscript(
+        _ transcript: String,
+        title: String,
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        // First try to parse just a time (e.g., "8 am", "3:30 pm")
+        if let time = parseTimeOnly(transcript) {
+            let now = Date()
+            var due = combineDateAndTime(baseDate: now, time: time)
+            // If time already passed today, use tomorrow
+            if due <= now {
+                due = Calendar.current.date(byAdding: .day, value: 1, to: due) ?? due
+            }
+            await prepareToSave(
+                title: title,
+                dueAt: due,
+                settings: settings,
+                modelContext: modelContext
+            )
+            return
+        }
+
+        // Otherwise try full parser (for "tomorrow at 3pm", "in 30 minutes", etc.)
+        let result = parser.parse(transcript)
+
+        switch result {
+        case .complete(let draft):
+            if let due = draft.dueAt {
+                await prepareToSave(
+                    title: title,
+                    dueAt: due,
+                    earlyAlertMinutes: draft.earlyAlertMinutes,
+                    settings: settings,
+                    modelContext: modelContext
+                )
+            } else {
                 prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
                 needsFollowUp = true
             }
-            
-        case .needsTime(let title, let baseDate, _):
-            if let time = parseTimeOnly(t) {
-                let due = combineDateAndTime(baseDate: baseDate, time: time)
-                await prepareToSave(
-                    title: title,
-                    dueAt: due,
-                    settings: settings,
-                    modelContext: modelContext
-                )
-            } else {
-                prompt = String(localized: "What time? (e.g. \"9 AM\" or \"3:30 PM\")")
-                needsFollowUp = true
-            }
-            
-        case .confirmDuplicate(let title, let dueAt, _):
-            if parseYes(t) {
-                await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
-            } else if parseNo(t) {
-                reset()
-                prompt = String(localized: "Okay, cancelled. What else?")
-            } else {
-                prompt = String(localized: "Say \"yes\" to save anyway, or \"no\" to cancel.")
-                needsFollowUp = true
-            }
-            
-        case .confirmEdit(let reminder, let newTime, let newTitle):
-            if parseYes(t) {
-                await applyEdit(reminder: reminder, newTime: newTime, newTitle: newTitle, settings: settings, modelContext: modelContext)
-            } else if parseNo(t) {
-                reset()
-                prompt = String(localized: "Okay, no changes made.")
-            } else {
-                prompt = String(localized: "Say \"yes\" to confirm or \"no\" to cancel.")
-                needsFollowUp = true
-            }
-            
-        case .confirmCancel(let reminders):
-            if parseYes(t) {
-                await deleteReminders(reminders, settings: settings, modelContext: modelContext)
-            } else if parseNo(t) {
-                reset()
-                prompt = String(localized: "Okay, nothing deleted.")
-            } else {
-                prompt = String(localized: "Say \"yes\" to delete or \"no\" to keep.")
-                needsFollowUp = true
-            }
 
-        case .calendarConflict(let title, let dueAt, let conflictingEvents):
-            if parseMerge(t) {
-                // Merge: combine reminder with calendar event names
-                let mergedTitle = "\(title) + \(conflictingEvents.joined(separator: " & "))"
-                await saveReminder(title: mergedTitle, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
-            } else if parseChangeTime(t) {
-                // Change time: go back to gotTask step
-                step = .gotTask(title: title)
-                timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
-                prompt = String(localized: "What time works better?")
-                needsFollowUp = true
-            } else if parseSaveAnyway(t) || parseYes(t) {
-                // Save anyway: proceed with original reminder
-                await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
-            } else if parseNo(t) || parseCancel(t) {
-                reset()
-                prompt = String(localized: "Okay, cancelled. What else?")
-            } else {
-                prompt = String(localized: "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\".")
-                needsFollowUp = true
-            }
+        case .needsTime(_, let baseDate, let periodHint):
+            step = .needsTime(title: title, baseDate: baseDate, periodHint: periodHint)
+            prompt = promptForTime(periodHint: periodHint)
+            needsFollowUp = true
+
+        case .needsWhen:
+            prompt = String(localized: "I need a specific time. Try: \"at 3 PM\" or \"in 2 hours\"")
+            needsFollowUp = true
+        }
+    }
+
+    private func handleNeedsTimeTranscript(
+        _ transcript: String,
+        title: String,
+        baseDate: Date,
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        if let time = parseTimeOnly(transcript) {
+            let due = combineDateAndTime(baseDate: baseDate, time: time)
+            await prepareToSave(
+                title: title,
+                dueAt: due,
+                settings: settings,
+                modelContext: modelContext
+            )
+        } else {
+            prompt = String(localized: "What time? (e.g. \"9 AM\" or \"3:30 PM\")")
+            needsFollowUp = true
+        }
+    }
+
+    private func handleConfirmDuplicateTranscript(
+        _ transcript: String,
+        title: String,
+        dueAt: Date,
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        if parseYes(transcript) {
+            await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
+        } else if parseNo(transcript) {
+            reset()
+            prompt = String(localized: "Okay, cancelled. What else?")
+        } else {
+            prompt = String(localized: "Say \"yes\" to save anyway, or \"no\" to cancel.")
+            needsFollowUp = true
+        }
+    }
+
+    private func handleConfirmEditTranscript(
+        _ transcript: String,
+        reminder: ReminderItem,
+        newTime: Date?,
+        newTitle: String?,
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        if parseYes(transcript) {
+            await applyEdit(reminder: reminder, newTime: newTime, newTitle: newTitle, settings: settings, modelContext: modelContext)
+        } else if parseNo(transcript) {
+            reset()
+            prompt = String(localized: "Okay, no changes made.")
+        } else {
+            prompt = String(localized: "Say \"yes\" to confirm or \"no\" to cancel.")
+            needsFollowUp = true
+        }
+    }
+
+    private func handleConfirmCancelTranscript(
+        _ transcript: String,
+        reminders: [ReminderItem],
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        if parseYes(transcript) {
+            await deleteReminders(reminders, settings: settings, modelContext: modelContext)
+        } else if parseNo(transcript) {
+            reset()
+            prompt = String(localized: "Okay, nothing deleted.")
+        } else {
+            prompt = String(localized: "Say \"yes\" to delete or \"no\" to keep.")
+            needsFollowUp = true
+        }
+    }
+
+    private func handleCalendarConflictTranscript(
+        _ transcript: String,
+        title: String,
+        dueAt: Date,
+        conflictingEvents: [String],
+        settings: AppSettings,
+        modelContext: ModelContext
+    ) async {
+        if parseMerge(transcript) {
+            // Merge: combine reminder with calendar event names
+            let mergedTitle = "\(title) + \(conflictingEvents.joined(separator: " & "))"
+            await saveReminder(title: mergedTitle, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
+        } else if parseChangeTime(transcript) {
+            // Change time: go back to gotTask step
+            step = .gotTask(title: title)
+            timeSuggestions = TimeSuggestionEngine.getSuggestions(for: title, in: modelContext)
+            prompt = String(localized: "What time works better?")
+            needsFollowUp = true
+        } else if parseSaveAnyway(transcript) || parseYes(transcript) {
+            // Save anyway: proceed with original reminder
+            await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
+        } else if parseNo(transcript) || parseCancel(transcript) {
+            reset()
+            prompt = String(localized: "Okay, cancelled. What else?")
+        } else {
+            prompt = String(localized: "Say \"merge\", \"change time\", \"save anyway\", or \"cancel\".")
+            needsFollowUp = true
         }
     }
     

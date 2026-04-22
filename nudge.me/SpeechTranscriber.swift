@@ -3,21 +3,26 @@ import Combine
 import Speech
 import AVFoundation
 
+@MainActor
 final class SpeechTranscriber: ObservableObject {
     @Published var transcript: String = ""
     @Published var isRecording = false
     @Published var lastError: String?
 
-    private var audioEngine: AVAudioEngine?
-    private var recognizer: SFSpeechRecognizer?
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var task: SFSpeechRecognitionTask?
-    
-    private let stateQueue = DispatchQueue(label: "com.nudge.me.transcriber.state")
-    private let audioQueue = DispatchQueue(label: "com.nudge.me.transcriber.audio", qos: .userInteractive)
-    private var isStarting = false
-    private var isStopping = false
-    private var audioSessionReady = false
+    // These are touched from the audio tap / recognition callbacks (arbitrary
+    // queues) and from the `stateQueue`/`audioQueue` closures below. They are
+    // protected by those queues (or by the SFSpeech/AVAudioEngine lifecycle)
+    // rather than by the main actor, so we opt them out of actor isolation.
+    nonisolated(unsafe) private var audioEngine: AVAudioEngine?
+    nonisolated(unsafe) private var recognizer: SFSpeechRecognizer?
+    nonisolated(unsafe) private var request: SFSpeechAudioBufferRecognitionRequest?
+    nonisolated(unsafe) private var task: SFSpeechRecognitionTask?
+
+    nonisolated private let stateQueue = DispatchQueue(label: "com.nudge.me.transcriber.state")
+    nonisolated private let audioQueue = DispatchQueue(label: "com.nudge.me.transcriber.audio", qos: .userInteractive)
+    nonisolated(unsafe) private var isStarting = false
+    nonisolated(unsafe) private var isStopping = false
+    nonisolated(unsafe) private var audioSessionReady = false
 
     init() {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: Locale.current.identifier))
@@ -40,19 +45,27 @@ final class SpeechTranscriber: ObservableObject {
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
-    
-    @objc private func handleAppDidBecomeActive() {
-        audioSessionReady = false
-        warmUp()
+
+    @objc nonisolated private func handleAppDidBecomeActive() {
+        // UIApplication.didBecomeActiveNotification is posted on the main
+        // thread, but hop explicitly so main-actor-isolated state (`warmUp`,
+        // `audioSessionReady`) is touched on the right executor.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.audioSessionReady = false
+            self.warmUp()
+        }
     }
-    
-    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
+
+    @objc nonisolated private func handleAudioSessionInterruption(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-        
+
         if type == .ended {
-            audioSessionReady = false
+            DispatchQueue.main.async { [weak self] in
+                self?.audioSessionReady = false
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 self?.warmUp()
             }
@@ -86,17 +99,17 @@ final class SpeechTranscriber: ObservableObject {
     /// Pre-warm audio session ONLY (not engine) - safe to call anytime
     func warmUp() {
         guard !audioSessionReady else { return }
-        
+
         audioQueue.async { [weak self] in
             guard let self = self else { return }
-            
+
             let session = AVAudioSession.sharedInstance()
             do {
                 try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
                 try session.setActive(true)
-                
-                DispatchQueue.main.async {
-                    self.audioSessionReady = true
+
+                Task { @MainActor [weak self] in
+                    self?.audioSessionReady = true
                 }
             } catch {
                 // Will set up on demand
@@ -184,21 +197,21 @@ final class SpeechTranscriber: ObservableObject {
         }
 
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard let self = self else { return }
-            
             if let error = error {
                 let nsError = error as NSError
                 if nsError.code != 203 && nsError.code != 216 && nsError.code != 1110 {
-                    DispatchQueue.main.async {
-                        self.lastError = error.localizedDescription
+                    let message = error.localizedDescription
+                    Task { @MainActor [weak self] in
+                        self?.lastError = message
                     }
                 }
                 return
             }
-            
+
             if let result = result {
-                DispatchQueue.main.async {
-                    self.transcript = result.bestTranscription.formattedString
+                let formatted = result.bestTranscription.formattedString
+                Task { @MainActor [weak self] in
+                    self?.transcript = formatted
                 }
             }
         }
@@ -225,8 +238,9 @@ final class SpeechTranscriber: ObservableObject {
         audioQueue.async {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
-        
-        DispatchQueue.main.async {
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
             self.isRecording = false
             self.transcript = ""
             self.lastError = nil
@@ -262,14 +276,16 @@ final class SpeechTranscriber: ObservableObject {
         audioQueue.async {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
-        
-        DispatchQueue.main.async {
+
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
             self.isRecording = false
             self.audioSessionReady = false
         }
-        
+
         // Pre-warm for next use
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
             self?.warmUp()
         }
     }

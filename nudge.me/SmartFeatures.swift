@@ -139,7 +139,9 @@ struct CommandDetector {
 // MARK: - Duplicate Detection
 
 struct DuplicateDetector {
-    
+
+    private static let duplicateTimeWindowSeconds: TimeInterval = 7200
+
     /// Check if a similar reminder already exists
     static func findDuplicate(
         title: String,
@@ -164,7 +166,7 @@ struct DuplicateDetector {
                 // Also check if due dates are close (within 2 hours)
                 if let existingDue = reminder.dueAt {
                     let timeDiff = abs(dueAt.timeIntervalSince(existingDue))
-                    if timeDiff < 7200 { // 2 hours
+                    if timeDiff < duplicateTimeWindowSeconds { // 2 hours
                         return reminder
                     }
                 }
@@ -334,10 +336,13 @@ struct ReminderSearch {
         
         let descriptor = FetchDescriptor<ReminderItem>(
             predicate: #Predicate { item in
-                item.statusRaw == "open" &&
-                item.dueAt != nil &&
-                item.dueAt! >= startOfDay &&
-                item.dueAt! < endOfDay
+                if let due = item.dueAt {
+                    return item.statusRaw == "open" &&
+                        due >= startOfDay &&
+                        due < endOfDay
+                } else {
+                    return false
+                }
             }
         )
         
