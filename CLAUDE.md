@@ -25,3 +25,9 @@ Give the verifier the plan text or the diff (`git diff`, `git diff --staged`, or
 - Wrong approach → stop, surface it, re-plan with the user before continuing.
 
 Do not skip the verifier to save time. Do not self-verify in the main conversation — it must be a separate subagent call so the review is independent.
+
+## Build pipeline
+
+Xcode Cloud workflow `Default` (configured in App Store Connect) archives the `nudge.me` scheme and uploads to App Store Connect. Triggered **manually** via App Store Connect → Xcode Cloud → Builds → **Start Build**. Auto-trigger on push is not wired up — Apple's webhook provisioning for this repo is broken and not worth fixing. Post-Actions currently empty; builds land in App Store Connect but aren't auto-distributed to a TestFlight group.
+
+To ship a build: push to `main`, then click Start Build in App Store Connect. After ~10–15 min processing it appears in the TestFlight tab.
