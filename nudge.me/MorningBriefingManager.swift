@@ -51,31 +51,29 @@ final class MorningBriefingManager {
             return
         }
         
-        center.removePendingNotificationRequests(withIdentifiers: [briefingRequestID])
-        
         let title = String(localized: "Morning Briefing")
         let countText = count == 1
             ? String(localized: "You have 1 nudge today.")
             : String(format: String(localized: "You have %lld nudges today."), Int64(count))
         let body = "\(countText) \(String(localized: "Open Nudge to review."))"
-        
+
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
-        
+
         let triggerComps = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: fireDate
         )
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComps, repeats: false)
-        
-        let req = UNNotificationRequest(identifier: briefingRequestID, content: content, trigger: trigger)
-        do {
-            try await center.add(req)
-        } catch {
-            ErrorLogger.log(error, context: "Scheduling morning briefing notification")
-        }
+
+        await NotificationsManager.shared.reschedule(
+            identifier: briefingRequestID,
+            content: content,
+            trigger: trigger,
+            errorContext: "Scheduling morning briefing notification"
+        )
     }
     
     func scheduleUsingStoredSettings() async {

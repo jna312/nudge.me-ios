@@ -19,7 +19,7 @@ struct ContentView: View {
     @State private var lastSavedReminder: ReminderItem?
     @State private var showUndoBanner = false
     @State private var isAutoListening = false
-    @State private var silenceTimer: Timer?
+    @State private var silenceTimer = SilenceTimerController()
     @State private var autoListenTimeoutTask: Task<Void, Never>?
 
     var body: some View {
@@ -73,6 +73,8 @@ struct ContentView: View {
                             }
                             .scaleEffect(isHoldingMic ? 1.1 : 1.0)
                             .animation(.spring(response: 0.3), value: isHoldingMic)
+                            .accessibilityLabel(String(localized: "Recording indicator"))
+                            .accessibilityHint(String(localized: "Voice is being recorded"))
                     }
                     .gesture(
                         DragGesture(minimumDistance: 0)
@@ -255,8 +257,7 @@ struct ContentView: View {
                 if isHoldingMic {
                     stopRecording()
                 }
-                silenceTimer?.invalidate()
-                silenceTimer = nil
+                silenceTimer.cancel()
                 autoListenTimeoutTask?.cancel()
                 autoListenTimeoutTask = nil
                 isAutoListening = false
@@ -291,8 +292,7 @@ struct ContentView: View {
     
     private func stopRecording() {
         isAutoListening = false
-        silenceTimer?.invalidate()
-        silenceTimer = nil
+        silenceTimer.cancel()
         autoListenTimeoutTask?.cancel()
         autoListenTimeoutTask = nil
         isHoldingMic = false
@@ -368,20 +368,17 @@ struct ContentView: View {
     }
     
     private func resetSilenceTimer() {
-        silenceTimer?.invalidate()
-        
         // Only use silence detection after user has started speaking
         let hasSpoken = !transcriber.transcript.isEmpty
-        guard hasSpoken else { return }  // Don't timeout before speech
-        
+        guard hasSpoken else {
+            silenceTimer.cancel()
+            return
+        }
+
         // After speech detected, wait for 2 seconds of silence to auto-stop
-        let silenceTimeout: TimeInterval = 2.0
-        
-        silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { _ in
-            DispatchQueue.main.async {
-                if self.isAutoListening {
-                    self.stopRecording()
-                }
+        silenceTimer.schedule(timeout: 2.0) {
+            if self.isAutoListening {
+                self.stopRecording()
             }
         }
     }

@@ -8,7 +8,9 @@ import UIKit
 
 final class CalendarSync {
     static let shared = CalendarSync()
-    
+
+    private static let defaultAlarmOffsetSeconds: TimeInterval = -900
+
     private var eventStore = EKEventStore()
     private var nudgeCalendar: EKCalendar?
     
@@ -141,7 +143,7 @@ final class CalendarSync {
             event.calendar = calendar
             event.notes = "Created by Nudge\nID: \(reminder.id.uuidString)"
             
-            let alarm = EKAlarm(relativeOffset: -900)
+            let alarm = EKAlarm(relativeOffset: Self.defaultAlarmOffsetSeconds)
             event.addAlarm(alarm)
             
             do {

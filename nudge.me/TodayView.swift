@@ -23,7 +23,7 @@ struct RemindersView: View {
     @ObservedObject private var tipsManager = TipsManager.shared
     @State private var isHoldingMic = false
     @State private var isAutoListening = false
-    @State private var silenceTimer: Timer?
+    @State private var silenceTimer = SilenceTimerController()
     @State private var autoListenTimeoutTask: Task<Void, Never>?
     @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
     private let emptyStateMessages = [
@@ -340,8 +340,7 @@ struct RemindersView: View {
                 if isHoldingMic {
                     stopRecording()
                 }
-                silenceTimer?.invalidate()
-                silenceTimer = nil
+                silenceTimer.cancel()
                 autoListenTimeoutTask?.cancel()
                 autoListenTimeoutTask = nil
                 isAutoListening = false
@@ -369,8 +368,7 @@ struct RemindersView: View {
     
     private func stopRecording() {
         isAutoListening = false
-        silenceTimer?.invalidate()
-        silenceTimer = nil
+        silenceTimer.cancel()
         autoListenTimeoutTask?.cancel()
         autoListenTimeoutTask = nil
         isHoldingMic = false
@@ -434,17 +432,15 @@ struct RemindersView: View {
     }
     
     private func resetSilenceTimer() {
-        silenceTimer?.invalidate()
-        
         let hasSpoken = !transcriber.transcript.isEmpty
-        guard hasSpoken else { return }
-        
-        let silenceTimeout: TimeInterval = 2.0
-        silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { _ in
-            DispatchQueue.main.async {
-                if self.isAutoListening {
-                    self.stopRecording()
-                }
+        guard hasSpoken else {
+            silenceTimer.cancel()
+            return
+        }
+
+        silenceTimer.schedule(timeout: 2.0) {
+            if self.isAutoListening {
+                self.stopRecording()
             }
         }
     }

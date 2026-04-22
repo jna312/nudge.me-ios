@@ -189,7 +189,24 @@ extension NotificationsManager {
     func removeNotifications(for reminder: ReminderItem) {
         let mainID = "\(reminder.id.uuidString)-alert"
         let earlyID = "\(reminder.id.uuidString)-early-alert"
-        
+
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [mainID, earlyID])
+    }
+
+    /// Remove any pending notification with `identifier`, then schedule a fresh request
+    /// built from `content` and `trigger`. Errors from `add` are forwarded to `ErrorLogger`
+    /// using `errorContext`.
+    func reschedule(identifier: String,
+                    content: UNNotificationContent,
+                    trigger: UNNotificationTrigger,
+                    errorContext: String) async {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+        } catch {
+            ErrorLogger.log(error, context: errorContext)
+        }
     }
 }

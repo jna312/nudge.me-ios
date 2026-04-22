@@ -43,8 +43,6 @@ final class DailyCloseoutManager {
             ? fireDate
             : Calendar.current.date(byAdding: .day, value: 1, to: fireDate)!
 
-        center.removePendingNotificationRequests(withIdentifiers: [closeoutRequestID])
-
         let content = UNMutableNotificationContent()
         content.title = "Daily closeout"
         content.body = "Want to close out today's reminders?"
@@ -57,11 +55,11 @@ final class DailyCloseoutManager {
         )
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComps, repeats: false)
 
-        let req = UNNotificationRequest(identifier: closeoutRequestID, content: content, trigger: trigger)
-        do {
-            try await center.add(req)
-        } catch {
-            ErrorLogger.log(error, context: "Scheduling daily closeout notification")
-        }
+        await NotificationsManager.shared.reschedule(
+            identifier: closeoutRequestID,
+            content: content,
+            trigger: trigger,
+            errorContext: "Scheduling daily closeout notification"
+        )
     }
 }

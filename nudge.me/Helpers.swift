@@ -22,15 +22,17 @@ func minutesFromMidnight(_ date: Date) -> Int {
 /// Get tomorrow at 9 AM
 func tomorrowAt9AM() -> Date {
     let calendar = Calendar.current
-    let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
-    return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
+    let now = Date()
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(Duration.oneDay)
+    return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
 }
 
 /// Get tomorrow at 6 PM
 func tomorrowAt6PM() -> Date {
     let calendar = Calendar.current
-    let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())!
-    return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: tomorrow)!
+    let now = Date()
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(Duration.oneDay)
+    return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: tomorrow) ?? tomorrow
 }
 
 /// Format a date as a readable time string (short)
@@ -68,7 +70,10 @@ func formatMinutes(_ minutes: Int) -> String {
 func dateFromMinutesSinceMidnight(_ minutes: Int) -> Date {
     let h = minutes / 60
     let min = minutes % 60
-    return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: Date())!
+    let now = Date()
+    // Fallback: if Calendar can't produce a time-of-day Date (effectively never on a valid
+    // calendar), return `now` so time pickers still have a non-nil anchor Date to display.
+    return Calendar.current.date(bySettingHour: h, minute: min, second: 0, of: now) ?? now
 }
 
 /// Apply writing style capitalization to a string

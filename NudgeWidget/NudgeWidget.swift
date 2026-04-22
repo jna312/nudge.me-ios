@@ -1,6 +1,8 @@
 import WidgetKit
 import SwiftUI
 
+private let voiceDeepLinkURL = URL(string: "nudgeme://voice")!
+
 struct NudgeWidgetEntry: TimelineEntry {
     let date: Date
     let reminders: [WidgetReminder]
@@ -74,7 +76,7 @@ struct SmallWidgetView: View {
     let entry: NudgeWidgetEntry
     
     var body: some View {
-        Link(destination: URL(string: "nudgeme://voice")!) {
+        Link(destination: voiceDeepLinkURL) {
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -92,6 +94,7 @@ struct SmallWidgetView: View {
                     Text("\(entry.reminders.count) today")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .accessibilityLabel("\(entry.reminders.count) reminders today")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -105,7 +108,7 @@ struct MediumWidgetView: View {
     
     var body: some View {
         HStack(spacing: 16) {
-            Link(destination: URL(string: "nudgeme://voice")!) {
+            Link(destination: voiceDeepLinkURL) {
                 VStack(spacing: 8) {
                     ZStack {
                         Circle()
@@ -169,7 +172,7 @@ struct LargeWidgetView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                 Spacer()
-                Link(destination: URL(string: "nudgeme://voice")!) {
+                Link(destination: voiceDeepLinkURL) {
                     ZStack {
                         Circle()
                             .fill(Color.blue)
