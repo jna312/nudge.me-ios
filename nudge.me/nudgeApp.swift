@@ -18,15 +18,7 @@ struct NudgeApp: App {
     init() {
         _ = NotificationsManager.shared
         
-        // CloudKit sync enabled
-        do {
-            let config = ModelConfiguration(cloudKitDatabase: .automatic)
-            modelContainer = try ModelContainer(for: ReminderItem.self, configurations: config)
-            print("✓ SwiftData initialized successfully with CloudKit")
-        } catch {
-            print("SwiftData/CloudKit error: \(error)")
-            fatalError("Could not create ModelContainer: \(error)")
-        }
+        modelContainer = NudgePersistence.shared
     }
 
     var body: some Scene {

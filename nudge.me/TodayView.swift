@@ -1,529 +1,185 @@
 import SwiftUI
 import SwiftData
-import UserNotifications
+
 struct RemindersView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.scenePhase) private var scenePhase
-    @Binding var selectedReminderID: UUID?
-    @ObservedObject var flow: CaptureFlow
-    @ObservedObject var transcriber: SpeechTranscriber
     @EnvironmentObject var settings: AppSettings
-    @Query(
-        filter: #Predicate<ReminderItem> { $0.statusRaw == "open" },
-        sort: \ReminderItem.dueAt
-    ) private var openReminders: [ReminderItem]
-    @Query(
-        filter: #Predicate<ReminderItem> { $0.statusRaw == "completed" },
-        sort: \ReminderItem.completedAt,
-        order: .reverse
-    ) private var completedReminders: [ReminderItem]
+    @Binding var selectedReminderID: UUID?
+    var onCapture: () -> Void
+    @Query(filter: #Predicate<ReminderItem> { $0.statusRaw == "open" }, sort: \ReminderItem.dueAt)
+    private var openReminders: [ReminderItem]
+    @Query(filter: #Predicate<ReminderItem> { $0.statusRaw == "completed" }, sort: \ReminderItem.completedAt, order: .reverse)
+    private var completedReminders: [ReminderItem]
     @State private var isCompletedExpanded = false
     @State private var editingReminder: ReminderItem?
     @State private var showSettings = false
-    @ObservedObject private var tipsManager = TipsManager.shared
-    @State private var isHoldingMic = false
-    @State private var isAutoListening = false
-    @State private var silenceTimer = SilenceTimerController()
-    @State private var autoListenTimeoutTask: Task<Void, Never>?
-    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
-    private let emptyStateMessages = [
-        ("No Reminders", "checkmark.circle", "You're all caught up!"),
-        ("All Clear", "sparkles", "Nothing to do. Enjoy the moment!"),
-        ("Free Time", "sun.max", "Your schedule is wide open."),
-        ("Well Done", "hand.thumbsup", "You've completed everything!"),
-        ("Peace of Mind", "leaf", "No pending tasks. Relax.")
-    ]
-    @State private var emptyState: (title: String, image: String, description: String)? = nil
-    @ViewBuilder
-    private var emptyStateView: some View {
-        let state = emptyState ?? (emptyStateMessages.first ?? ("No Reminders", "checkmark.circle", "You're all caught up!"))
-        ContentUnavailableView(
-            state.title,
-            systemImage: state.image,
-            description: Text(state.description)
-        )
-    }
+
     private struct ReminderSection: Identifiable {
-        let id = UUID()
+        var id: String { title }
         let title: String
         let items: [ReminderItem]
     }
-    private var groupedReminders: [ReminderSection] {
+
+    private func groupedReminders(at now: Date) -> [ReminderSection] {
         let calendar = Calendar.current
-        let now = Date()
-        let startOfToday = calendar.startOfDay(for: now)
-        let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
-        let startOfNextWeek = calendar.date(byAdding: .day, value: 7, to: startOfToday)!
-        var overdue: [ReminderItem] = []
-        var today: [ReminderItem] = []
-        var tomorrow: [ReminderItem] = []
-        var thisWeek: [ReminderItem] = []
-        var later: [ReminderItem] = []
-        var noDue: [ReminderItem] = []
-        for reminder in openReminders {
-            guard let due = reminder.dueAt else {
-                noDue.append(reminder)
-                continue
-            }
-            if due < startOfToday {
-                overdue.append(reminder)
-            } else if due < startOfTomorrow {
-                today.append(reminder)
-            } else if due < calendar.date(byAdding: .day, value: 2, to: startOfToday)! {
-                tomorrow.append(reminder)
-            } else if due < startOfNextWeek {
-                thisWeek.append(reminder)
-            } else {
-                later.append(reminder)
-            }
+        let nextWeek = calendar.date(byAdding: .day, value: 7, to: now) ?? now
+        let grouped = Dictionary(grouping: openReminders) { reminder -> String in
+            guard let due = reminder.dueAt else { return "No date" }
+            if due < now { return "Overdue" }
+            if calendar.isDateInToday(due) { return "Today" }
+            if calendar.isDateInTomorrow(due) { return "Tomorrow" }
+            return due < nextWeek ? "This week" : "Later"
         }
-        var sections: [ReminderSection] = []
-        if !overdue.isEmpty { sections.append(ReminderSection(title: "Overdue", items: overdue)) }
-        if !today.isEmpty { sections.append(ReminderSection(title: "Today", items: today)) }
-        if !tomorrow.isEmpty { sections.append(ReminderSection(title: "Tomorrow", items: tomorrow)) }
-        if !thisWeek.isEmpty { sections.append(ReminderSection(title: "This Week", items: thisWeek)) }
-        if !later.isEmpty { sections.append(ReminderSection(title: "Later", items: later)) }
-        if !noDue.isEmpty { sections.append(ReminderSection(title: "No Date", items: noDue)) }
-        return sections
+        return ["Overdue", "Today", "Tomorrow", "This week", "Later", "No date"].compactMap { title in
+            grouped[title].map { ReminderSection(title: title, items: $0) }
+        }
     }
+
     var body: some View {
-        NavigationStack {
-            Group {
-                if openReminders.isEmpty && completedReminders.isEmpty {
-                    emptyStateView
-                } else {
-                    List {
-                        ForEach(groupedReminders) { section in
-                            Section(section.title) {
-                                ForEach(section.items) { reminder in
-                                    ReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            editingReminder = reminder
-                                        }
-                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                                            Button {
-                                                snoozeReminder(reminder, minutes: 10)
-                                            } label: {
-                                                Label("10 min", systemImage: "clock.arrow.circlepath")
-                                            }
-                                            .tint(.orange)
-                                            Button {
-                                                snoozeReminder(reminder, minutes: 30)
-                                            } label: {
-                                                Label("30 min", systemImage: "clock.arrow.circlepath")
-                                            }
-                                            .tint(.yellow)
-                                            Button {
-                                                snoozeReminder(reminder, minutes: 60)
-                                            } label: {
-                                                Label("1 hour", systemImage: "clock")
-                                            }
-                                            .tint(.blue)
-                                            Button {
-                                                snoozeReminder(reminder, minutes: 1440) // 24 hours
-                                            } label: {
-                                                Label("1 day", systemImage: "calendar")
-                                            }
-                                            .tint(.purple)
-                                        }
-                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            Button(role: .destructive) {
-                                                deleteReminder(reminder)
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            List {
+                if openReminders.isEmpty {
+                    Label("No reminders", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 8).listRowBackground(NudgeDesign.surface)
+                }
+
+                ForEach(groupedReminders(at: timeline.date)) { section in
+                    Section {
+                        ForEach(section.items) { reminder in
+                            ReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled,
+                                onEdit: { editingReminder = reminder })
+                                .listRowBackground(NudgeDesign.surface)
+                                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                    Button { snooze(reminder, minutes: 10) } label: {
+                                        Label("10 min", systemImage: "clock.arrow.circlepath")
+                                    }.tint(NudgeDesign.accent)
+                                    Button { snooze(reminder, minutes: 60) } label: {
+                                        Label("1 hour", systemImage: "clock")
+                                    }.tint(.indigo)
                                 }
-                            }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) { delete(reminder) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
-                        if !completedReminders.isEmpty {
-                            Section {
-                                DisclosureGroup(isExpanded: $isCompletedExpanded) {
-                                    ForEach(completedReminders) { reminder in
-                                        CompletedReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
-                                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                                Button(role: .destructive) {
-                                                    deleteReminder(reminder)
-                                                } label: {
-                                                    Label("Delete", systemImage: "trash")
-                                                }
-                                            }
+                    } header: {
+                        Text(section.title).font(.caption.weight(.semibold)).tracking(1)
+                    }
+                }
+                if !completedReminders.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $isCompletedExpanded) {
+                            ForEach(completedReminders) { reminder in
+                                CompletedReminderRow(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
+                                    .swipeActions {
+                                        Button(role: .destructive) { delete(reminder) } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
-                                } label: {
-                                    HStack {
-                                        Text("Completed")
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                        Spacer()
-                                        Text("\(completedReminders.count)")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text("Completed").font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text("\(completedReminders.count)").font(.subheadline).foregroundStyle(.secondary)
                             }
                         }
                     }
+                    .listRowBackground(NudgeDesign.surface)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(NudgeDesign.background)
+        }
+        .navigationTitle("Reminders")
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: onCapture) {
+                    Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add reminder")
+                Button { showSettings = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .accessibilityLabel("Reminder settings")
             }
         }
         .sheet(item: $editingReminder) { reminder in
             EditReminderView(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
         }
         .sheet(isPresented: $showSettings) {
-            NavigationStack {
-                SettingsView(settings: settings)
-            }
+            NavigationStack { SettingsView(settings: settings).navigationTitle("Settings") }
         }
-        .onAppear {
-            // Pre-prepare haptic for instant response
-            hapticGenerator.prepare()
-            
-            if emptyState == nil {
-                let pick = emptyStateMessages[Int.random(in: 0..<emptyStateMessages.count)]
-                emptyState = (title: pick.0, image: pick.1, description: pick.2)
-            }
-            // Show swipe actions tip when there are reminders
-            if !openReminders.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    if tipsManager.currentTip == nil {
-                        tipsManager.showTipIfNeeded(.swipeActions)
-                    }
-                }
-            }
-        }
-        .onChange(of: selectedReminderID) { _, newID in
-            if let id = newID,
-               let reminder = openReminders.first(where: { $0.id == id }) {
-                editingReminder = reminder
-                selectedReminderID = nil
-            }
-        }
-        .overlay {
-            // Tip overlay
-            if let tip = tipsManager.currentTip {
-                TipOverlay(tip: tip) {
-                    tipsManager.dismissTip(tip.id)
-                }
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            let isMicDisabled = showSettings || editingReminder != nil
-            
-            VStack(alignment: .trailing, spacing: 12) {
-                // Show prompt bubble only for follow-up questions or when recording
-                if flow.needsFollowUp || isHoldingMic || isAutoListening {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(flow.prompt)
-                            .font(.subheadline)
-                            .fontWeight(flow.needsFollowUp ? .medium : .regular)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-                        
-                        if isHoldingMic || isAutoListening {
-                            Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(4)
-                        } else if flow.needsFollowUp {
-                            Text("Mic will auto-start...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(12)
-                    .frame(maxWidth: min(UIScreen.main.bounds.width * 0.75, 320), alignment: .leading)
-                    .background(flow.needsFollowUp ? .ultraThickMaterial : .ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(color: flow.needsFollowUp ? .black.opacity(0.15) : .black.opacity(0.1), radius: flow.needsFollowUp ? 8 : 6)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                    .animation(.spring(response: 0.3), value: flow.needsFollowUp)
-                }
-                
-                // Floating mic button
-                ZStack {
-                    if isHoldingMic {
-                        Circle()
-                            .fill(Color.red.opacity(0.2))
-                            .frame(width: 110, height: 110)
-                            .scaleEffect(isHoldingMic ? 1.2 : 1.0)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
-                    }
-                    
-                    Circle()
-                        .fill(isHoldingMic ? Color.red : Color.blue)
-                        .frame(width: 72, height: 72)
-                        .shadow(color: isHoldingMic ? .red.opacity(0.4) : .blue.opacity(0.3), radius: 8, y: 4)
-                        .overlay {
-                            Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
-                                .font(.system(size: 30))
-                                .foregroundStyle(.white)
-                                .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
-                        }
-                        .scaleEffect(isHoldingMic ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.3), value: isHoldingMic)
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if !isHoldingMic && !isMicDisabled {
-                                startRecording()
-                            }
-                        }
-                        .onEnded { _ in
-                            if isHoldingMic {
-                                stopRecording()
-                            }
-                        }
-                )
-                .disabled(isMicDisabled)
-                .opacity(isMicDisabled ? 0.5 : 1.0)
-            }
-            .padding(.trailing, 16)
-            .padding(.bottom, 16)
-        }
-        .onChange(of: flow.lastSavedReminder) { _, newReminder in
-            if let reminder = newReminder {
-                if settings.calendarSyncEnabled {
-                    Task {
-                        await CalendarSync.shared.syncToCalendar(reminder: reminder)
-                    }
-                }
-                WidgetDataProvider.shared.syncReminders(from: modelContext)
-            }
-        }
-        .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
-            if needsFollowUp {
-                // Same timing as Speak tab - start auto-listening after brief delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    // Only start if conditions are still valid
-                    if flow.needsFollowUp && !isHoldingMic && !showSettings && editingReminder == nil {
-                        startAutoListening()
-                    }
-                }
-            }
-        }
-        .onChange(of: transcriber.transcript) { _, newValue in
-            if isAutoListening && !newValue.isEmpty {
-                resetSilenceTimer()
-            }
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                // App became active - prepare haptics and check for pending follow-ups
-                hapticGenerator.prepare()
-                
-                // If stuck in recording state without auto-listening, reset
-                if isHoldingMic && !isAutoListening {
-                    isHoldingMic = false
-                    transcriber.reset()
-                }
-                
-                // If there's a pending follow-up question, restart auto-listening
-                if flow.needsFollowUp && !isHoldingMic && !showSettings && editingReminder == nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if flow.needsFollowUp && !isHoldingMic {
-                            startAutoListening()
-                        }
-                    }
-                }
-            } else if newPhase == .background {
-                if isHoldingMic {
-                    stopRecording()
-                }
-                silenceTimer.cancel()
-                autoListenTimeoutTask?.cancel()
-                autoListenTimeoutTask = nil
-                isAutoListening = false
-            }
-        }
-    }
-    
-    // MARK: - Mic Recording
-    
-    private func startRecording() {
-        isHoldingMic = true
-        transcriber.transcript = ""
-        hapticGenerator.impactOccurred()
-        hapticGenerator.prepare()
-        
-        do {
-            try transcriber.start()
-        } catch {
-            isHoldingMic = false
-            transcriber.reset()
-            let errorGenerator = UINotificationFeedbackGenerator()
-            errorGenerator.notificationOccurred(.error)
-        }
-    }
-    
-    private func stopRecording() {
-        isAutoListening = false
-        silenceTimer.cancel()
-        autoListenTimeoutTask?.cancel()
-        autoListenTimeoutTask = nil
-        isHoldingMic = false
-        transcriber.stop()
-        
-        let finalText = transcriber.transcript
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
-        
-        guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            transcriber.transcript = ""
-            return
-        }
-        
-        Task {
-            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            transcriber.transcript = ""
-        }
-    }
-    
-    private func startAutoListening() {
-        guard !isHoldingMic && !showSettings && editingReminder == nil else { return }
-        
-        isHoldingMic = true
-        isAutoListening = true
-        transcriber.transcript = ""
-        
-        do {
-            try transcriber.start()
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
-        } catch {
-            isHoldingMic = false
-            isAutoListening = false
-            transcriber.reset()
-        }
-        
-        // Safety timeout after 60 seconds (in case user forgets) - cancellable
-        autoListenTimeoutTask?.cancel()
-        autoListenTimeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 60_000_000_000)
-            guard !Task.isCancelled else { return }
-            
-            if self.isAutoListening && self.transcriber.transcript.isEmpty {
-                // Save the current prompt if it was a follow-up question
-                let currentPrompt = self.flow.prompt
-                let wasFollowUp = self.flow.needsFollowUp
-                
-                self.stopRecording()
-                
-                // If there was a follow-up question, keep it visible and add timeout note
-                if wasFollowUp {
-                    self.flow.prompt = currentPrompt + "\n" + String(localized: "(Tap mic to respond)")
-                    self.flow.needsFollowUp = true // Keep question state active
-                } else {
-                    self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
-                }
-            }
-        }
-    }
-    
-    private func resetSilenceTimer() {
-        let hasSpoken = !transcriber.transcript.isEmpty
-        guard hasSpoken else {
-            silenceTimer.cancel()
-            return
-        }
-
-        silenceTimer.schedule(timeout: 2.0) {
-            if self.isAutoListening {
-                self.stopRecording()
-            }
-        }
+        .onAppear { openSelectedReminder() }
+        .onChange(of: selectedReminderID) { _, _ in openSelectedReminder() }
+        .tint(NudgeDesign.accent)
     }
 
-    private func deleteReminder(_ reminder: ReminderItem) {
-        if settings.calendarSyncEnabled {
-            Task {
-                await CalendarSync.shared.removeFromCalendar(reminder: reminder)
-            }
-        }
-        withAnimation {
-            let notificationID = "\(reminder.id.uuidString)-alert"
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+    private func openSelectedReminder() {
+        guard let id = selectedReminderID,
+              let reminder = openReminders.first(where: { $0.id == id }) else { return }
+        editingReminder = reminder
+        selectedReminderID = nil
+    }
+
+    private func delete(_ reminder: ReminderItem) {
+        NotificationsManager.shared.removeNotifications(for: reminder)
+        Task { @MainActor in
+            if settings.calendarSyncEnabled { await CalendarSync.shared.removeFromCalendar(reminder: reminder) }
             modelContext.delete(reminder)
+            modelContext.saveWithLogging(context: "Deleting reminder")
+            WidgetDataProvider.shared.syncReminders(from: modelContext)
         }
-        
-        // Sync to widget
-        WidgetDataProvider.shared.syncReminders(from: modelContext)
     }
-    private func snoozeReminder(_ reminder: ReminderItem, minutes: Int) {
-        let newDue = Date().addingTimeInterval(TimeInterval(minutes * 60))
-        reminder.dueAt = newDue
-        reminder.alertAt = newDue
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+
+    private func snooze(_ reminder: ReminderItem, minutes: Int) {
+        reminder.dueAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        reminder.alertAt = reminder.dueAt
+        modelContext.saveWithLogging(context: "Snoozing reminder")
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         Task {
             await NotificationsManager.shared.schedule(reminder: reminder)
-            if settings.calendarSyncEnabled {
-                await CalendarSync.shared.syncToCalendar(reminder: reminder)
-            }
+            if settings.calendarSyncEnabled { await CalendarSync.shared.syncToCalendar(reminder: reminder) }
         }
-        
-        // Sync to widget
-        WidgetDataProvider.shared.syncReminders(from: modelContext)
     }
 }
 struct ReminderRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var reminder: ReminderItem
     let calendarSyncEnabled: Bool
-    private var urgencyColor: Color {
-        guard let due = reminder.dueAt else { return .secondary }
-        let calendar = Calendar.current
-        let now = Date()
-        if due < calendar.startOfDay(for: now) {
-            return .red
-        } else if calendar.isDateInToday(due) {
-            return .orange
-        } else if calendar.isDateInTomorrow(due) {
-            return .blue
-        } else {
-            return .secondary
-        }
-    }
+    var onEdit: () -> Void
+
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                markComplete()
-            } label: {
-                Image(systemName: "circle")
-                    .font(.title2)
-                    .foregroundStyle(urgencyColor)
+        HStack(spacing: 10) {
+            Button(action: markComplete) {
+                Image(systemName: "circle").font(.title2)
+                    .foregroundStyle(NudgeDesign.accent).frame(width: 44, height: 48)
             }
             .buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(reminder.title)
-                    .font(.body)
-                if let due = reminder.dueAt {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                        Text(formatDueDate(due))
-                            .font(.caption)
+            .accessibilityLabel("Complete \(reminder.title)")
+            Button(action: onEdit) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(reminder.title).font(.body.weight(.medium)).foregroundStyle(.primary)
+                    if let due = reminder.dueAt {
+                        Label(formatDueDate(due), systemImage: due < .now ? "exclamationmark.circle" : "clock")
+                            .font(.subheadline)
+                            .foregroundStyle(due < .now ? Color.red : Color.secondary)
                     }
-                    .foregroundStyle(urgencyColor)
+                    if let early = reminder.earlyAlertMinutes, reminder.alertAt != nil {
+                        Text("\(formatMinutes(early)) warning").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer()
-            Circle()
-                .fill(urgencyColor)
-                .frame(width: 10, height: 10)
+            .buttonStyle(.plain)
+            .accessibilityHint("Edit reminder")
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
     private func markComplete() {
         let generator = UIImpactFeedbackGenerator(style: .medium)
@@ -531,9 +187,10 @@ struct ReminderRow: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             reminder.status = .completed
             reminder.completedAt = .now
-            let notificationID = "\(reminder.id.uuidString)-alert"
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+            NotificationsManager.shared.removeNotifications(for: reminder)
         }
+        modelContext.saveWithLogging(context: "Updating reminder completion")
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
         if calendarSyncEnabled {
             Task {
                 await CalendarSync.shared.removeFromCalendar(reminder: reminder)
@@ -568,6 +225,7 @@ struct ReminderRow: View {
     }
 }
 struct CompletedReminderRow: View {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var reminder: ReminderItem
     let calendarSyncEnabled: Bool
     var body: some View {
@@ -577,9 +235,11 @@ struct CompletedReminderRow: View {
             } label: {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(NudgeDesign.accent)
+                    .frame(width: 44, height: 48)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Reopen \(reminder.title)")
             VStack(alignment: .leading, spacing: 4) {
                 Text(reminder.title)
                     .font(.body)
@@ -607,6 +267,8 @@ struct CompletedReminderRow: View {
                 }
             }
         }
+        modelContext.saveWithLogging(context: "Updating reminder completion")
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
         if calendarSyncEnabled {
             Task {
                 await CalendarSync.shared.syncToCalendar(reminder: reminder)
@@ -631,4 +293,3 @@ struct CompletedReminderRow: View {
         }
     }
 }
-

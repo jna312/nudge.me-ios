@@ -13,6 +13,9 @@
 		68B185C92F198C33000DBF4C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 68B185C82F198C33000DBF4C /* WidgetKit.framework */; };
 		68B185CB2F198C33000DBF4C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 68B185CA2F198C33000DBF4C /* SwiftUI.framework */; };
 		68B185D82F198C35000DBF4C /* NudgeWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A10000000000000000000001 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* WidgetSnapshot.swift */; };
+		A10000000000000000000002 /* CompleteWidgetReminderIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* CompleteWidgetReminderIntent.swift */; };
+		A10000000000000000000003 /* NudgeDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* NudgeDesign.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +52,9 @@
 		68B185C62F198C33000DBF4C /* NudgeWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NudgeWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		68B185C82F198C33000DBF4C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		68B185CA2F198C33000DBF4C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		A10000000000000000000011 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../nudge.me/WidgetSnapshot.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* CompleteWidgetReminderIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../nudge.me/CompleteWidgetReminderIntent.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* NudgeDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../nudge.me/NudgeDesign.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -119,6 +125,9 @@
 				6888428B2F1992EE003648BC /* Info.plist */,
 				6888428C2F1992EE003648BC /* NudgeWidget.swift */,
 				6888428D2F1992EE003648BC /* NudgeWidgetBundle.swift */,
+				A10000000000000000000013 /* NudgeDesign.swift */,
+				A10000000000000000000012 /* CompleteWidgetReminderIntent.swift */,
+				A10000000000000000000011 /* WidgetSnapshot.swift */,
 			);
 			path = NudgeWidget;
 			sourceTree = "<group>";
@@ -249,6 +258,9 @@
 			files = (
 				688842912F1992EE003648BC /* NudgeWidget.swift in Sources */,
 				688842922F1992EE003648BC /* NudgeWidgetBundle.swift in Sources */,
+				A10000000000000000000003 /* NudgeDesign.swift in Sources */,
+				A10000000000000000000002 /* CompleteWidgetReminderIntent.swift in Sources */,
+				A10000000000000000000001 /* WidgetSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -481,6 +493,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) NUDGE_WIDGET_EXTENSION";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = NudgeWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -515,6 +528,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) NUDGE_WIDGET_EXTENSION";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = NudgeWidgetExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";

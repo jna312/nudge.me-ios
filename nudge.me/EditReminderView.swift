@@ -3,9 +3,12 @@ import SwiftData
 
 struct EditReminderView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Bindable var reminder: ReminderItem
     let calendarSyncEnabled: Bool
     
+    @State private var isSaving = false
+    @State private var saveError: String?
     @State private var title: String = ""
     @State private var dueDate: Date = Date()
     @State private var hasAlert: Bool = true
@@ -39,24 +42,25 @@ struct EditReminderView: View {
                             Text(option.0).tag(option.1)
                         }
                     }
-                    
+                    .disabled(!hasAlert)
+
                     Text("Get a \"Coming Up\" notification before your main alert.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
                 
                 Section("Quick Snooze") {
-                    HStack(spacing: 12) {
-                        SnoozeButton(title: "10 min", color: .orange) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 8) {
+                        SnoozeButton(title: "10 min", color: NudgeDesign.accent) {
                             dueDate = Date().addingTimeInterval(Duration.tenMinutes)
                         }
-                        SnoozeButton(title: "30 min", color: .yellow) {
+                        SnoozeButton(title: "30 min", color: NudgeDesign.accent) {
                             dueDate = Date().addingTimeInterval(Duration.thirtyMinutes)
                         }
-                        SnoozeButton(title: "1 hour", color: .blue) {
+                        SnoozeButton(title: "1 hour", color: NudgeDesign.accent) {
                             dueDate = Date().addingTimeInterval(Duration.oneHour)
                         }
-                        SnoozeButton(title: "1 day", color: .purple) {
+                        SnoozeButton(title: "1 day", color: NudgeDesign.accent) {
                             dueDate = Date().addingTimeInterval(Duration.oneDay)
                         }
                     }
@@ -79,12 +83,17 @@ struct EditReminderView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        saveChanges()
-                        dismiss()
+                        Task { await saveChanges() }
                     }
                     .fontWeight(.semibold)
+                    .disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || dueDate <= .now)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(NudgeDesign.background)
+            .alert("Couldn’t save changes", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(saveError ?? "") }
             .onAppear {
                 title = reminder.title
                 dueDate = reminder.dueAt ?? Date()
@@ -92,15 +101,24 @@ struct EditReminderView: View {
                 earlyAlertMinutes = reminder.earlyAlertMinutes ?? 0
             }
         }
+        .tint(NudgeDesign.accent)
     }
-    
-    private func saveChanges() {
+
+    private func saveChanges() async {
+        isSaving = true
+        defer { isSaving = false }
         reminder.title = title
         reminder.dueAt = dueDate
         reminder.alertAt = hasAlert ? dueDate : nil
         reminder.earlyAlertMinutes = earlyAlertMinutes > 0 ? earlyAlertMinutes : nil
         
-        Task {
+        do { try modelContext.save() }
+        catch {
+            modelContext.rollback()
+            saveError = error.localizedDescription
+            return
+        }
+        do {
             if hasAlert || earlyAlertMinutes > 0 {
                 await NotificationsManager.shared.schedule(reminder: reminder)
             } else {
@@ -112,6 +130,8 @@ struct EditReminderView: View {
             }
         }
         
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
+        dismiss()
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
     }
@@ -131,10 +151,9 @@ struct SnoozeButton: View {
             Text(title)
                 .font(.caption)
                 .fontWeight(.medium)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(color, in: Capsule())
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(color.opacity(0.12), in: Capsule())
         }
         .buttonStyle(.plain)
     }

@@ -16,8 +16,11 @@ struct CommandDetector {
     
     /// Detect if the transcript is a command (edit/cancel) vs a new reminder
     static func detect(_ transcript: String) -> VoiceCommand {
-        let lower = transcript.lowercased()
-        
+        let lower = transcript.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if lower.hasPrefix("remind me ") || lower.hasPrefix("don't forget ") || lower.hasPrefix("i need to ") {
+            return .createReminder
+        }
+
         // Cancel commands
         if lower.contains("cancel") || lower.contains("delete") || lower.contains("remove") {
             if lower.contains("last") || lower.contains("previous") {

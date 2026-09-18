@@ -16,23 +16,21 @@ struct RootView: View {
     @State private var showSettings = false
     @State private var shouldAutoStartMic = false
     @State private var selectedReminderID: UUID?
+    @Query(sort: \ReminderItem.createdAt) private var widgetItems: [ReminderItem]
+
+    private var widgetValues: [SharedWidgetReminder] {
+        widgetItems.map { SharedWidgetReminder(id: $0.id, title: $0.title, dueAt: $0.dueAt,
+                                               isCompleted: $0.status != .open) }
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
             // MAIN UI (Speak)
             NavigationStack {
-                ContentView(isSettingsOpen: $showSettings, autoStartMic: $shouldAutoStartMic, flow: sharedFlow, transcriber: sharedTranscriber)
+                ContentView(isSettingsOpen: $showSettings, autoStartMic: $shouldAutoStartMic,
+                    flow: sharedFlow, transcriber: sharedTranscriber,
+                    onShowReminders: { selectedTab = .reminders })
                     .environmentObject(settings)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                showSettings = true
-                            } label: {
-                                Image(systemName: "gearshape")
-                            }
-                        }
-                    }
                     .sheet(isPresented: $showSettings) {
                         NavigationStack {
                             SettingsView(settings: settings)
@@ -45,11 +43,19 @@ struct RootView: View {
 
             // Reminders
             NavigationStack {
-                RemindersView(selectedReminderID: $selectedReminderID, flow: sharedFlow, transcriber: sharedTranscriber)
+                RemindersView(selectedReminderID: $selectedReminderID, onCapture: {
+                    selectedTab = .speak
+                    shouldAutoStartMic = true
+                })
                     .environmentObject(settings)
             }
             .tabItem { Label("Reminders", systemImage: "list.bullet.circle") }
             .tag(AppTab.reminders)
+        }
+        .tint(NudgeDesign.accent)
+        .onChange(of: widgetValues) { _, _ in
+            // Includes edits and CloudKit changes observed while the app is running.
+            WidgetDataProvider.shared.syncReminders(from: modelContext)
         }
         .onChange(of: notificationsManager.shouldNavigateToReminders) { _, shouldNavigate in
             if shouldNavigate {
@@ -65,15 +71,15 @@ struct RootView: View {
             WidgetDataProvider.shared.syncReminders(from: modelContext)
             
             // Check for widget completions
-            WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
+            await WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
             
             await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // Check for widget completions when app becomes active
-            WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
-            
             Task {
+                await WidgetDataProvider.shared.checkForWidgetCompletions(in: modelContext)
+                WidgetDataProvider.shared.syncReminders(from: modelContext)
                 await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
             }
         }

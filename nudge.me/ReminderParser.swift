@@ -11,8 +11,8 @@ final class ReminderParser {
 
     private static let earlyAlertPatterns: [(NSRegularExpression, Int?, Bool)] = {
         let specs: [(String, Int?)] = [
-            (#"with\s+(?:a\s+)?(\d+)\s*(?:minute|min)\s*(?:warning|alert|heads?\s*up)"#, nil),
-            (#"with\s+(?:a\s+)?(\d+)\s*hour\s*(?:warning|alert|heads?\s*up)"#, nil),
+            (#"(?:with|(?:and\s+)?give\s+me)\s+(?:a\s+)?(\d+)[\s-]*(?:minute|min)s?\s*(?:warning|alert|heads?\s*up)"#, nil),
+            (#"(?:with|(?:and\s+)?give\s+me)\s+(?:a\s+)?(\d+)[\s-]*hours?\s*(?:warning|alert|heads?\s*up)"#, nil),
             (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*(?:minute|min)s?\s*(?:before|early|earlier)"#, nil),
             (#"(?:warn|alert|remind)\s+me\s+(\d+)\s*hours?\s*(?:before|early|earlier)"#, nil),
             (#"with\s+(?:an?\s+)?early\s*(?:alert|warning|heads?\s*up)"#, 15),
@@ -151,6 +151,23 @@ final class ReminderParser {
         return .needsWhen(title: finalTitle, raw: cleaned)
     }
     
+    func earlyWarning(in text: String) -> Int? {
+        parseEarlyAlertPhrase(text.normalizeNumberWords())
+    }
+
+    /// Retain the spoken clock until the user supplies its meridiem.
+    func ambiguousClockTime(in text: String) -> String? {
+        let normalized = text.normalizeNumberWords()
+        guard let regex = Self.explicitTimeParseRegex,
+              let match = regex.firstMatch(in: normalized, range: NSRange(normalized.startIndex..., in: normalized)),
+              match.range(at: 3).location == NSNotFound,
+              let hourRange = Range(match.range(at: 1), in: normalized),
+              let hour = Int(normalized[hourRange]), (1...12).contains(hour) else { return nil }
+        let minute = Range(match.range(at: 2), in: normalized).flatMap { Int(normalized[$0]) } ?? 0
+        guard (0...59).contains(minute) else { return nil }
+        return minute == 0 ? String(hour) : String(format: "%d:%02d", hour, minute)
+    }
+
     // MARK: - Early Alert Parsing
     
     private func parseEarlyAlertPhrase(_ lower: String) -> Int? {
@@ -314,9 +331,11 @@ final class ReminderParser {
         var minute = 0
         if let minR = Range(m.range(at: 2), in: lower) { minute = Int(lower[minR]) ?? 0 }
         
+        guard (0...23).contains(hourRaw), (0...59).contains(minute) else { return nil }
         var hour = hourRaw
         let hasExplicitAmPm = m.range(at: 3).location != NSNotFound
         
+        if hasExplicitAmPm && !(1...12).contains(hourRaw) { return nil }
         if hasExplicitAmPm, let ampmR = Range(m.range(at: 3), in: lower) {
             let ampm = lower[ampmR].lowercased().replacingOccurrences(of: ".", with: "")
             if ampm == "pm", hour < 12 { hour += 12 }
@@ -339,6 +358,15 @@ final class ReminderParser {
 
     private func stripSchedulingPhrases(from s: String) -> String {
         var t = s
+        // Normalize only scheduling spans so proper names and numbers in the task survive.
+        let number = #"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty)\b"#
+        let spokenSchedules = [
+            #"(?i)\b(?:at|by)\s+"# + number + #"(?:(?::|\s+)"# + number + #")?\s*(?:a\.?m\.?|p\.?m\.?)?"#,
+            #"(?i)\b(?:with|(?:and\s+)?give\s+me)\s+(?:a\s+)?"# + number + #"[\s-]*(?:minute|min|hour)s?\s*(?:warning|alert|heads?\s*up)"#
+        ]
+        for pattern in spokenSchedules {
+            t = t.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        }
         // Run multiple passes to handle nested phrases like "remind me that I have an..."
         for _ in 1...3 {
             for p in Self.stripSchedulingPatterns {
@@ -346,6 +374,6 @@ final class ReminderParser {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
-        return t.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ",.;")))
     }
 }

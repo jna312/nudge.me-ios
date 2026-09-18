@@ -81,12 +81,12 @@ func applyWritingStyle(_ text: String, style: String) -> String {
     switch style {
     case "Lowercase":
         return text.lowercased()
-    case "UPPERCASE":
+    case "caps", "UPPERCASE":
         return text.uppercased()
-    case "Title Case":
+    case "title", "Title Case":
         return text.capitalized
     default: // "Sentence case"
         guard let first = text.first else { return text }
-        return first.uppercased() + text.dropFirst().lowercased()
+        return first.uppercased() + text.dropFirst()
     }
 }

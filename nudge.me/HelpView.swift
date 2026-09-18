@@ -6,9 +6,9 @@ struct HelpView: View {
             // Quick Start
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Label("Hold the mic button and speak", systemImage: "1.circle.fill")
+                    Label("Tap or hold the mic button and speak", systemImage: "1.circle.fill")
                     Label("Say what and when (e.g. \"Call mom tomorrow at 3 PM\")", systemImage: "2.circle.fill")
-                    Label("Release to save — that's it!", systemImage: "3.circle.fill")
+                    Label("Tap again or release to finish", systemImage: "3.circle.fill")
                 }
                 .padding(.vertical, 8)
             } header: {
@@ -77,8 +77,8 @@ struct HelpView: View {
             Section {
                 FeatureRow(
                     icon: "hand.tap.fill",
-                    title: "Hold to Speak",
-                    description: "Hold the mic button, speak your reminder with a time, then release to save."
+                    title: "Tap or Hold to Speak",
+                    description: "Tap to start and tap again to finish, or hold while speaking and release. If a time is unclear, choose AM or PM before saving."
                 )
                 
                 FeatureRow(

@@ -5,317 +5,200 @@ import AVFoundation
 
 @MainActor
 final class SpeechTranscriber: ObservableObject {
-    @Published var transcript: String = ""
-    @Published var isRecording = false
+    @Published var transcript = ""
+    @Published private(set) var isRecording = false
     @Published var lastError: String?
 
-    // These are touched from the audio tap / recognition callbacks (arbitrary
-    // queues) and from the `stateQueue`/`audioQueue` closures below. They are
-    // protected by those queues (or by the SFSpeech/AVAudioEngine lifecycle)
-    // rather than by the main actor, so we opt them out of actor isolation.
-    nonisolated(unsafe) private var audioEngine: AVAudioEngine?
-    nonisolated(unsafe) private var recognizer: SFSpeechRecognizer?
-    nonisolated(unsafe) private var request: SFSpeechAudioBufferRecognitionRequest?
-    nonisolated(unsafe) private var task: SFSpeechRecognitionTask?
-
-    nonisolated private let stateQueue = DispatchQueue(label: "com.nudge.me.transcriber.state")
-    nonisolated private let audioQueue = DispatchQueue(label: "com.nudge.me.transcriber.audio", qos: .userInteractive)
-    nonisolated(unsafe) private var isStarting = false
-    nonisolated(unsafe) private var isStopping = false
-    nonisolated(unsafe) private var audioSessionReady = false
+    private var audioEngine: AVAudioEngine?
+    private let recognizer = SFSpeechRecognizer(locale: .current)
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private var sessionID: UUID?
+    private var finalTranscript: String?
+    private var finishContinuation: CheckedContinuation<String, Error>?
+    private var finishTimeout: Task<Void, Never>?
 
     init() {
-        recognizer = SFSpeechRecognizer(locale: Locale(identifier: Locale.current.identifier))
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAppDidBecomeActive),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAudioSessionInterruption),
-            name: AVAudioSession.interruptionNotification,
-            object: nil
-        )
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
+        NotificationCenter.default.addObserver(self, selector: #selector(audioInterrupted),
+            name: AVAudioSession.interruptionNotification, object: nil)
     }
 
-    @objc nonisolated private func handleAppDidBecomeActive() {
-        // UIApplication.didBecomeActiveNotification is posted on the main
-        // thread, but hop explicitly so main-actor-isolated state (`warmUp`,
-        // `audioSessionReady`) is touched on the right executor.
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.audioSessionReady = false
-            self.warmUp()
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc nonisolated private func audioInterrupted(_ notification: Notification) {
+        guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
+        Task { @MainActor [weak self] in
+            self?.lastError = String(localized: "Recording was interrupted. Your words are still here; try again or type them.")
+            self?.cancelSession()
         }
     }
 
-    @objc nonisolated private func handleAudioSessionInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
-
-        if type == .ended {
-            DispatchQueue.main.async { [weak self] in
-                self?.audioSessionReady = false
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.warmUp()
-            }
+    @discardableResult
+    func requestPermissions() async -> Bool {
+        let microphone = await AVAudioApplication.requestRecordPermission()
+        guard microphone else {
+            lastError = String(localized: "Microphone access is off. Enable it in Settings, or type your reminder.")
+            return false
         }
-    }
-    
-    func requestPermissions() async {
-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            #if os(iOS)
-            if #available(iOS 17.0, *) {
-                AVAudioApplication.requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            } else {
-                AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                    continuation.resume(returning: granted)
-                }
-            }
-            #endif
+        guard !Task.isCancelled else { return false }
+        let speech = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
         }
-
-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<SFSpeechRecognizerAuthorizationStatus, Never>) in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
-            }
+        guard speech == .authorized else {
+            lastError = String(localized: "Speech recognition is off. Enable it in Settings, or type your reminder.")
+            return false
         }
-        
-        warmUp()
-    }
-    
-    /// Pre-warm audio session ONLY (not engine) - safe to call anytime
-    func warmUp() {
-        guard !audioSessionReady else { return }
-
-        audioQueue.async { [weak self] in
-            guard let self = self else { return }
-
-            let session = AVAudioSession.sharedInstance()
-            do {
-                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
-                try session.setActive(true)
-
-                Task { @MainActor [weak self] in
-                    self?.audioSessionReady = true
-                }
-            } catch {
-                // Will set up on demand
-            }
-        }
+        lastError = nil
+        return true
     }
 
-    /// Start recording
     func start() throws {
-        var shouldReturn = false
-        stateQueue.sync {
-            if isStarting || isStopping {
-                shouldReturn = true
-            } else {
-                isStarting = true
-            }
+        guard !isRecording, finishContinuation == nil else { throw TranscriberError.busy }
+        guard AVAudioApplication.shared.recordPermission == .granted,
+              SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            throw TranscriberError.permissionDenied
         }
-        if shouldReturn {
-            throw TranscriberError.busy
-        }
-        
-        defer {
-            stateQueue.sync { isStarting = false }
-        }
-        
-        // Quick cleanup
-        task?.cancel()
-        task = nil
-        request?.endAudio()
-        request = nil
-        
+        guard let recognizer, recognizer.isAvailable else { throw TranscriberError.recognizerUnavailable }
+        cancelSession()
         transcript = ""
         lastError = nil
-        
-        // ALWAYS ensure audio session is configured first
-        let session = AVAudioSession.sharedInstance()
-        if !audioSessionReady {
-            do {
-                try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
-                try session.setActive(true)
-                audioSessionReady = true
-            } catch {
-                throw TranscriberError.audioSessionFailed(error)
-            }
-        }
-        
-        // Create fresh engine AFTER audio session is ready
-        let engine = AVAudioEngine()
-        audioEngine = engine
+        finalTranscript = nil
+        let id = UUID()
+        sessionID = id
 
-        // Create recognition request
-        request = SFSpeechAudioBufferRecognitionRequest()
-        guard let request = request else {
-            throw TranscriberError.requestCreationFailed
-        }
-        request.shouldReportPartialResults = true
-        
-        // Configure audio tap - audio session MUST be active before this
-        let inputNode = engine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
-        guard recordingFormat.sampleRate > 0 && recordingFormat.channelCount > 0 else {
-            throw TranscriberError.invalidAudioFormat
-        }
-        
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
-        }
-
-        // Start engine
-        engine.prepare()
         do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playAndRecord, mode: .measurement,
+                options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers])
+            try audioSession.setActive(true)
+            let engine = AVAudioEngine()
+            let recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+            recognitionRequest.shouldReportPartialResults = true
+            recognitionRequest.taskHint = .dictation
+            let format = engine.inputNode.outputFormat(forBus: 0)
+            guard format.sampleRate > 0, format.channelCount > 0 else { throw TranscriberError.invalidAudioFormat }
+            // Capture this request, never a mutable request belonging to a later recording.
+            engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                recognitionRequest.append(buffer)
+            }
+            audioEngine = engine
+            request = recognitionRequest
+            engine.prepare()
             try engine.start()
-        } catch {
-            inputNode.removeTap(onBus: 0)
-            throw TranscriberError.engineStartFailed(error)
-        }
-        
-        isRecording = true
-
-        // Start recognition
-        guard let recognizer = recognizer, recognizer.isAvailable else {
-            stop()
-            throw TranscriberError.recognizerUnavailable
-        }
-
-        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            if let error = error {
-                let nsError = error as NSError
-                if nsError.code != 203 && nsError.code != 216 && nsError.code != 1110 {
-                    let message = error.localizedDescription
-                    Task { @MainActor [weak self] in
-                        self?.lastError = message
+            isRecording = true
+            recognitionTask = recognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+                let text = result?.bestTranscription.formattedString
+                let isFinal = result?.isFinal == true
+                let failure = error?.localizedDescription
+                Task { @MainActor [weak self] in
+                    guard let self, self.sessionID == id else { return }
+                    if let text { self.transcript = text }
+                    if isFinal {
+                        self.finalTranscript = text ?? self.transcript
+                        self.stopAudio()
+                        self.resolveFinish(.success(self.finalTranscript ?? ""))
+                    } else if let failure {
+                        self.lastError = failure
+                        self.stopAudio()
+                        self.resolveFinish(.failure(TranscriberError.recognitionFailed(failure)))
                     }
                 }
-                return
             }
+        } catch {
+            cancelSession()
+            throw error
+        }
+    }
 
-            if let result = result {
-                let formatted = result.bestTranscription.formattedString
-                Task { @MainActor [weak self] in
-                    self?.transcript = formatted
+    /// Ends input, then waits for Apple's final result instead of saving provisional text.
+    func finish() async throws -> String {
+        if let finalTranscript {
+            cancelSession()
+            return finalTranscript
+        }
+        if let lastError { throw TranscriberError.recognitionFailed(lastError) }
+        guard sessionID != nil, finishContinuation == nil else { throw TranscriberError.busy }
+        let finishingSession = sessionID
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                finishContinuation = continuation
+                stopAudio()
+                request?.endAudio()
+                recognitionTask?.finish()
+                finishTimeout = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled, let self else { return }
+                    self.lastError = String(localized: "I couldn’t finish recognizing that. Try again, or edit your words below.")
+                    self.resolveFinish(.failure(TranscriberError.finalizationTimedOut))
                 }
             }
-        }
-    }
-    
-    func reset() {
-        stateQueue.sync {
-            isStarting = false
-            isStopping = false
-        }
-        
-        task?.cancel()
-        task = nil
-        request?.endAudio()
-        request = nil
-        
-        if let engine = audioEngine {
-            if engine.isRunning { engine.stop() }
-            engine.inputNode.removeTap(onBus: 0)
-        }
-        audioEngine = nil
-        audioSessionReady = false
-        
-        audioQueue.async {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            self.isRecording = false
-            self.transcript = ""
-            self.lastError = nil
-        }
-    }
-
-    func stop() {
-        var shouldReturn = false
-        stateQueue.sync {
-            if isStopping {
-                shouldReturn = true
-            } else {
-                isStopping = true
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                guard self?.sessionID == finishingSession else { return }
+                self?.cancelSession()
             }
         }
-        if shouldReturn { return }
-        
-        defer {
-            stateQueue.sync { isStopping = false }
-        }
-        
-        request?.endAudio()
-        task?.finish()
-        task = nil
-        request = nil
-        
+    }
+
+    func stop() { cancelSession() }
+
+    func reset() {
+        cancelSession()
+        transcript = ""
+        lastError = nil
+        finalTranscript = nil
+    }
+
+    private func stopAudio() {
         if let engine = audioEngine {
+            engine.stop()
             engine.inputNode.removeTap(onBus: 0)
-            if engine.isRunning { engine.stop() }
         }
         audioEngine = nil
-        
-        audioQueue.async {
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        }
-
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            self.isRecording = false
-            self.audioSessionReady = false
-        }
-
-        // Pre-warm for next use
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            self?.warmUp()
-        }
+        isRecording = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
-    
-    var isHealthy: Bool {
-        if isRecording {
-            return audioEngine?.isRunning == true
-        }
-        return recognizer?.isAvailable == true
+
+    private func resolveFinish(_ result: Result<String, Error>) {
+        guard let continuation = finishContinuation else { return }
+        finishContinuation = nil
+        finishTimeout?.cancel()
+        finishTimeout = nil
+        sessionID = nil
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        request = nil
+        continuation.resume(with: result)
+    }
+
+    private func cancelSession() {
+        sessionID = nil
+        stopAudio()
+        request?.endAudio()
+        recognitionTask?.cancel()
+        request = nil
+        recognitionTask = nil
+        finishTimeout?.cancel()
+        finishTimeout = nil
+        let continuation = finishContinuation
+        finishContinuation = nil
+        continuation?.resume(throwing: CancellationError())
     }
 }
 
 enum TranscriberError: LocalizedError {
-    case busy
-    case engineCreationFailed
-    case audioSessionFailed(Error)
-    case requestCreationFailed
-    case invalidAudioFormat
-    case engineStartFailed(Error)
-    case recognizerUnavailable
-    
+    case busy, permissionDenied, invalidAudioFormat, recognizerUnavailable, finalizationTimedOut
+    case recognitionFailed(String)
+
     var errorDescription: String? {
         switch self {
-        case .busy: return "Transcriber is busy"
-        case .engineCreationFailed: return "Failed to create audio engine"
-        case .audioSessionFailed(let e): return "Audio session error: \(e.localizedDescription)"
-        case .requestCreationFailed: return "Failed to create recognition request"
-        case .invalidAudioFormat: return "Invalid audio format"
-        case .engineStartFailed(let e): return "Engine start error: \(e.localizedDescription)"
-        case .recognizerUnavailable: return "Speech recognizer unavailable"
+        case .busy: return String(localized: "Please wait for the current recording to finish.")
+        case .permissionDenied: return String(localized: "Enable microphone and speech recognition in Settings, or type your reminder.")
+        case .invalidAudioFormat: return String(localized: "The microphone is unavailable. Check your audio connection and try again.")
+        case .recognizerUnavailable: return String(localized: "Speech recognition is unavailable right now. You can type your reminder instead.")
+        case .finalizationTimedOut: return String(localized: "Recognition took too long. Try again, or edit your words below.")
+        case .recognitionFailed(let message): return message
         }
     }
 }

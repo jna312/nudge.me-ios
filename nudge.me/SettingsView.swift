@@ -1,10 +1,10 @@
 import SwiftUI
+import SwiftData
 import EventKit
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject var settings: AppSettings
-    @ObservedObject private var tipsManager = TipsManager.shared
     @State private var calendarAccessGranted = false
     @State private var showingSyncAlert = false
     @State private var syncMessage = ""
@@ -149,7 +149,6 @@ struct SettingsView: View {
             }
             
             Section("Advanced") {
-                Button("Reset Tips") { tipsManager.resetAllTips() }
                 Button("Reset Onboarding") { settings.didCompleteOnboarding = false }
                     .foregroundStyle(.red)
             }

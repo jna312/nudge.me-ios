@@ -149,7 +149,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
             mainContent.interruptionLevel = .timeSensitive
         }
 
-        let mainComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertAt)
+        let mainComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: alertAt)
         let mainTrigger = UNCalendarNotificationTrigger(dateMatching: mainComps, repeats: false)
         let mainReq = UNNotificationRequest(identifier: mainNotificationID, content: mainContent, trigger: mainTrigger)
         do {
@@ -172,7 +172,7 @@ final class NotificationsManager: NSObject, ObservableObject, UNUserNotification
                 earlyContent.interruptionLevel = .timeSensitive
             }
             
-            let earlyComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: earlyAlertAt)
+            let earlyComps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: earlyAlertAt)
             let earlyTrigger = UNCalendarNotificationTrigger(dateMatching: earlyComps, repeats: false)
             let earlyReq = UNNotificationRequest(identifier: earlyNotificationID, content: earlyContent, trigger: earlyTrigger)
             do {

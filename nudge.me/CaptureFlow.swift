@@ -28,7 +28,35 @@ final class CaptureFlow: ObservableObject {
     @Published var lastSavedReminder: ReminderItem?
     @Published var conflictWarning: String? = nil
     @Published var timeSuggestions: [Date] = []
-    @Published var needsFollowUp: Bool = false  // Signals ContentView to auto-listen
+    @Published var needsFollowUp = false
+    @Published private(set) var ambiguousTime: String?
+    @Published private(set) var pendingEarlyAlertMinutes: Int?
+
+    var draftTitle: String? {
+        switch step {
+        case .gotTask(let title), .needsTime(let title, _, _), .confirmDuplicate(let title, _, _), .calendarConflict(let title, _, _): return title
+        case .confirmEdit(let reminder, _, _): return reminder.title
+        default: return nil
+        }
+    }
+
+    var draftDate: Date? {
+        switch step {
+        case .needsTime(_, let date, _), .confirmDuplicate(_, let date, _), .calendarConflict(_, let date, _): return date
+        case .confirmEdit(_, let date, _): return date
+        default: return nil
+        }
+    }
+
+    func updateDraftTitle(_ title: String) {
+        switch step {
+        case .gotTask: step = .gotTask(title: title)
+        case .needsTime(_, let date, let hint): step = .needsTime(title: title, baseDate: date, periodHint: hint)
+        case .confirmDuplicate(_, let date, let reminder): step = .confirmDuplicate(title: title, dueAt: date, existingReminder: reminder)
+        case .calendarConflict(_, let date, let events): step = .calendarConflict(title: title, dueAt: date, conflictingEvents: events)
+        default: break
+        }
+    }
 
     private let parser = ReminderParser()
     
@@ -44,6 +72,7 @@ final class CaptureFlow: ObservableObject {
         timeSuggestions = []
         needsFollowUp = false
         pendingEarlyAlertMinutes = nil
+        ambiguousTime = nil
     }
 
     func handleTranscript(
@@ -51,7 +80,10 @@ final class CaptureFlow: ObservableObject {
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
-        let t = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        var t = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let ambiguousTime, ["am", "pm"].contains(t.lowercased().trimmingCharacters(in: .punctuationCharacters)) {
+            t = "\(ambiguousTime) \(t)"
+        }
         guard !t.isEmpty else { return }
         lastHeard = t
         
@@ -59,7 +91,7 @@ final class CaptureFlow: ObservableObject {
         needsFollowUp = false
 
         // First, check if this is a command (edit/cancel) vs new reminder
-        let command = CommandDetector.detect(t)
+        let command: VoiceCommand = step == .idle ? CommandDetector.detect(t) : .createReminder
         
         switch command {
         case .cancelLast:
@@ -119,6 +151,8 @@ final class CaptureFlow: ObservableObject {
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
+        pendingEarlyAlertMinutes = parser.earlyWarning(in: transcript) ?? pendingEarlyAlertMinutes
+        ambiguousTime = parser.ambiguousClockTime(in: transcript)
         let result = parser.parse(transcript)
 
         switch result {
@@ -156,7 +190,9 @@ final class CaptureFlow: ObservableObject {
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
-        // First try to parse just a time (e.g., "8 am", "3:30 pm")
+        pendingEarlyAlertMinutes = parser.earlyWarning(in: transcript) ?? pendingEarlyAlertMinutes
+        ambiguousTime = parser.ambiguousClockTime(in: transcript)
+        // Only accept a whole time expression here; dates/durations use the full parser.
         if let time = parseTimeOnly(transcript) {
             let now = Date()
             var due = combineDateAndTime(baseDate: now, time: time)
@@ -209,7 +245,10 @@ final class CaptureFlow: ObservableObject {
         settings: AppSettings,
         modelContext: ModelContext
     ) async {
-        if let time = parseTimeOnly(transcript) {
+        pendingEarlyAlertMinutes = parser.earlyWarning(in: transcript) ?? pendingEarlyAlertMinutes
+        let answer = ["am", "pm"].contains(transcript.lowercased().trimmingCharacters(in: .punctuationCharacters))
+            ? "\(ambiguousTime ?? "") \(transcript)" : transcript
+        if let time = parseTimeOnly(answer) {
             let due = combineDateAndTime(baseDate: baseDate, time: time)
             await prepareToSave(
                 title: title,
@@ -217,8 +256,11 @@ final class CaptureFlow: ObservableObject {
                 settings: settings,
                 modelContext: modelContext
             )
+        } else if transcript.lowercased().contains("tomorrow") || transcript.lowercased().contains("today") || transcript.lowercased().hasPrefix("in ") {
+            await handleGotTaskTranscript(transcript, title: title, settings: settings, modelContext: modelContext)
         } else {
-            prompt = String(localized: "What time? (e.g. \"9 AM\" or \"3:30 PM\")")
+            ambiguousTime = parser.ambiguousClockTime(in: transcript) ?? parser.ambiguousClockTime(in: "at " + transcript) ?? ambiguousTime
+            prompt = String(localized: "What time? Include AM or PM, or choose a new day and time.")
             needsFollowUp = true
         }
     }
@@ -309,7 +351,6 @@ final class CaptureFlow: ObservableObject {
     
     // MARK: - Prepare to Save (with duplicate & conflict checking)
     
-    private var pendingEarlyAlertMinutes: Int? = nil
     
     private func prepareToSave(
         title: String,
@@ -319,8 +360,15 @@ final class CaptureFlow: ObservableObject {
         modelContext: ModelContext
     ) async {
         // Store for potential use after duplicate confirmation
-        pendingEarlyAlertMinutes = earlyAlertMinutes
-        
+        pendingEarlyAlertMinutes = earlyAlertMinutes ?? pendingEarlyAlertMinutes
+        ambiguousTime = nil
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, dueAt > Date() else {
+            step = .gotTask(title: title)
+            prompt = String(localized: "Choose a future date and time for this reminder.")
+            needsFollowUp = true
+            return
+        }
+
         // Check for duplicates
         if let duplicate = DuplicateDetector.findDuplicate(title: title, dueAt: dueAt, in: modelContext) {
             step = .confirmDuplicate(title: title, dueAt: dueAt, existingReminder: duplicate)
@@ -331,7 +379,7 @@ final class CaptureFlow: ObservableObject {
         }
         
         // Check for calendar conflicts
-        let conflicts = await CalendarConflictDetector.checkConflicts(at: dueAt)
+        let conflicts = settings.calendarSyncEnabled ? await CalendarConflictDetector.checkConflicts(at: dueAt) : []
         if !conflicts.isEmpty {
             // Show conflict resolution options
             step = .calendarConflict(title: title, dueAt: dueAt, conflictingEvents: conflicts)
@@ -342,7 +390,7 @@ final class CaptureFlow: ObservableObject {
         }
         
         // Save the reminder
-        await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: earlyAlertMinutes, settings: settings, modelContext: modelContext)
+        await saveReminder(title: title, dueAt: dueAt, earlyAlertMinutes: pendingEarlyAlertMinutes, settings: settings, modelContext: modelContext)
     }
     
     // MARK: - Command Handlers
@@ -489,8 +537,8 @@ final class CaptureFlow: ObservableObject {
         
         // Multiple patterns to try (most specific first)
         let patterns = [
-            #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,  // "6 pm", "6:30 pm"
-            #"(\d{1,2})(?::(\d{2}))?\s*(am|pm)"#,             // No "at" prefix
+            #"^\s*(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)[.!?]?\s*$"#,  // "6 pm", "6:30 pm"
+            #"^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)[.!?]?\s*$"#,             // No "at" prefix
         ]
         
         for pattern in patterns {
@@ -500,6 +548,7 @@ final class CaptureFlow: ObservableObject {
                    let hrR = Range(m.range(at: 1), in: lower) {
                     
                     var hour = Int(lower[hrR]) ?? 0
+                    guard (1...12).contains(hour) else { continue }
                     var minute = 0
                     
                     if m.numberOfRanges > 2, let minR = Range(m.range(at: 2), in: lower) {
@@ -521,7 +570,7 @@ final class CaptureFlow: ObservableObject {
         
         // Pattern without AM/PM (only use if no am/pm in input)
         if !lower.contains("am") && !lower.contains("pm") {
-            let simplePattern = #"(?:at\s+)?(\d{1,2})(?::(\d{2}))?"#
+            let simplePattern = #"^\s*(?:at\s+)?(\d{1,2})(?::(\d{2}))?[.!?]?\s*$"#
             if let re = try? NSRegularExpression(pattern: simplePattern, options: [.caseInsensitive]) {
                 let range = NSRange(lower.startIndex..., in: lower)
                 if let m = re.firstMatch(in: lower, range: range),
@@ -557,13 +606,13 @@ final class CaptureFlow: ObservableObject {
     }
     
     private func parseYes(_ s: String) -> Bool {
-        let lower = s.lowercased()
-        return lower.contains("yes") || lower == "yeah" || lower == "yep" || lower == "sure" || lower == "okay" || lower == "ok"
+        let lower = s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return ["yes", "yeah", "yep", "sure", "okay", "ok"].contains(lower)
     }
     
     private func parseNo(_ s: String) -> Bool {
-        let lower = s.lowercased()
-        return lower.contains("no") || lower == "nope" || lower == "nah" || lower == "cancel"
+        let lower = s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return ["no", "nope", "nah", "cancel"].contains(lower)
     }
     
     private func parseMerge(_ s: String) -> Bool {
@@ -591,10 +640,8 @@ final class CaptureFlow: ObservableObject {
     }
     
     private func parseCancel(_ s: String) -> Bool {
-        let lower = s.lowercased()
-        return lower.contains("cancel") || lower.contains("delete") || 
-               lower.contains("nevermind") || lower.contains("never mind") ||
-               lower.contains("forget it")
+        let lower = s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        return ["cancel", "nevermind", "never mind", "forget it"].contains(lower)
     }
     
     // MARK: - Save
@@ -619,15 +666,26 @@ final class CaptureFlow: ObservableObject {
         )
 
         modelContext.insert(item)
-        lastSavedReminder = item
-        modelContext.saveWithLogging(context: "Saving reminder")
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.delete(item)
+            prompt = String(localized: "Couldn’t save this reminder. Please try again.")
+            step = .gotTask(title: title)
+            needsFollowUp = true
+            return
+        }
 
+        await NotificationsManager.shared.requestPermission()
         await NotificationsManager.shared.schedule(reminder: item)
+        if settings.calendarSyncEnabled { await CalendarSync.shared.syncToCalendar(reminder: item) }
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
         await DailyCloseoutManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
         await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
 
         reset()
-        
+        lastSavedReminder = item
+
         // Build confirmation message
         var confirmMsg = String(localized: "Saved!")
         if let early = finalEarlyAlert {

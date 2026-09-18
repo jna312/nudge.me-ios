@@ -16,11 +16,11 @@ enum ReminderActions {
             return results.first
         }).flatMap({ $0 }) else { return }
 
-        item.status = .completed
-        item.completedAt = .now
-        context.saveWithLogging(context: "Marking reminder done")
-        
-        await MorningBriefingManager.shared.scheduleUsingStoredSettings()
+        do {
+            try await WidgetReminderActions.complete(id: item.id, context: context)
+        } catch {
+            ErrorLogger.log(error, context: "Marking reminder done")
+        }
     }
 
     static func snooze(reminderID: UUID, minutes: Int) async {
@@ -43,6 +43,7 @@ enum ReminderActions {
         item.alertAt = newDue
 
         context.saveWithLogging(context: "Snoozing reminder")
+        WidgetDataProvider.shared.syncReminders(from: context)
         
         await NotificationsManager.shared.schedule(reminder: item)
         await MorningBriefingManager.shared.scheduleUsingStoredSettings()
@@ -75,6 +76,6 @@ enum ReminderActions {
         }
         
         context.saveWithLogging(context: "Marking all open done for today")
+        WidgetDataProvider.shared.syncReminders(from: context)
     }
 }
-

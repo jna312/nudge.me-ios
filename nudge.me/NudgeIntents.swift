@@ -34,6 +34,7 @@ struct AddNudgeIntent: AppIntent {
         
         context.insert(reminder)
         try context.save()
+        WidgetDataProvider.shared.syncReminders(from: context)
         
         // Schedule notification
         await NotificationsManager.shared.schedule(reminder: reminder)
@@ -186,13 +187,7 @@ struct CompleteNudgeIntent: AppIntent {
         let reminders = try context.fetch(descriptor)
         
         if let match = reminders.first(where: { $0.title.lowercased().contains(searchTerm) }) {
-            match.status = .completed
-            match.completedAt = .now
-            try context.save()
-            
-            // Cancel notification
-            let notificationID = "\(match.id.uuidString)-alert"
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
+            try await WidgetReminderActions.complete(id: match.id, context: context)
             
             return .result(dialog: IntentDialog(stringLiteral: "Done! Marked \(match.title) as complete."))
         }

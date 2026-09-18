@@ -3,15 +3,14 @@ import SwiftData
 import WidgetKit
 
 /// Syncs reminder data to the widget via App Groups
+@MainActor
 final class WidgetDataProvider {
     static let shared = WidgetDataProvider()
     
-    private let appGroupID = "group.com.m2.nudge"
-    private let remindersKey = "widgetReminders"
     private let completedKey = "completedFromWidget"
     
     private var sharedDefaults: UserDefaults? {
-        UserDefaults(suiteName: appGroupID)
+        WidgetSharedStore.defaults
     }
     
     private init() {}
@@ -19,59 +18,42 @@ final class WidgetDataProvider {
     /// Sync all active reminders to the widget
     func syncReminders(from context: ModelContext) {
         let descriptor = FetchDescriptor<ReminderItem>(
-            predicate: #Predicate { $0.completedAt == nil },
+            predicate: #Predicate { $0.statusRaw == "open" },
             sortBy: [SortDescriptor(\.dueAt)]
         )
         
         guard let reminders = try? context.fetch(descriptor) else { return }
         
-        let sharedReminders = reminders.compactMap { reminder -> SharedWidgetReminder? in
-            guard let dueAt = reminder.dueAt else { return nil }
+        let sharedReminders = reminders.map { reminder -> SharedWidgetReminder in
             return SharedWidgetReminder(
                 id: reminder.id,
                 title: reminder.title,
-                dueAt: dueAt,
-                isCompleted: (reminder.completedAt != nil)
+                dueAt: reminder.dueAt,
+                isCompleted: reminder.status != .open
             )
         }
         
         if let encoded = try? JSONEncoder().encode(sharedReminders) {
-            sharedDefaults?.set(encoded, forKey: remindersKey)
+            sharedDefaults?.set(encoded, forKey: WidgetSharedStore.remindersKey)
+            sharedDefaults?.removeObject(forKey: WidgetSharedStore.completionErrorKey)
         }
         
         // Trigger widget refresh
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetSharedStore.kind)
     }
     
     /// Check if any reminders were completed from the widget
-    func checkForWidgetCompletions(in context: ModelContext) {
+    func checkForWidgetCompletions(in context: ModelContext) async {
         guard let completedId = sharedDefaults?.string(forKey: completedKey),
               let uuid = UUID(uuidString: completedId) else { return }
         
-        // Clear the flag
-        sharedDefaults?.removeObject(forKey: completedKey)
-        
-        // Find and complete the reminder in the main app
-        let descriptor = FetchDescriptor<ReminderItem>(
-            predicate: #Predicate { $0.id == uuid }
-        )
-        
-        if let reminders = try? context.fetch(descriptor),
-           let reminder = reminders.first {
-            reminder.completedAt = Date()
-            try? context.save()
-            
-            // Resync to widget
-            syncReminders(from: context)
+        // Migrate any legacy pending action without dropping it before a save.
+        do {
+            try await WidgetReminderActions.complete(id: uuid, context: context)
+            sharedDefaults?.removeObject(forKey: completedKey)
+        } catch {
+            ErrorLogger.log(error, context: "Applying legacy widget completion")
         }
     }
-}
-
-/// Shared struct for encoding reminders (must match widget's SharedReminder)
-struct SharedWidgetReminder: Codable {
-    let id: UUID
-    let title: String
-    let dueAt: Date
-    let isCompleted: Bool
 }
 

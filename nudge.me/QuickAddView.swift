@@ -7,7 +7,10 @@ struct QuickAddView: View {
     let modelContext: ModelContext
     let calendarSyncEnabled: Bool
     var onDismiss: () -> Void
+    var onSave: (ReminderItem) -> Void = { _ in }
     
+    @State private var isSaving = false
+    @State private var saveError: String?
     @State private var title = ""
     @State private var dueDate = Date().addingTimeInterval(Duration.oneHour)
     @State private var hasAlert = true
@@ -61,33 +64,30 @@ struct QuickAddView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        addReminder()
-                        dismiss()
-                        onDismiss()
+                        Task { await addReminder() }
                     }
                     .fontWeight(.semibold)
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || dueDate <= .now)
                 }
             }
             .onAppear {
                 isTitleFocused = true
                 earlyAlertMinutes = settings.defaultEarlyAlertMinutes
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    TipsManager.shared.showTipIfNeeded(.quickAdd)
-                }
             }
-            .overlay {
-                if let tip = TipsManager.shared.currentTip {
-                    TipOverlay(tip: tip) {
-                        TipsManager.shared.dismissTip(tip.id)
-                    }
-                }
-            }
+            .scrollContentBackground(.hidden)
+            .background(NudgeDesign.background)
+            .alert("Couldn’t save reminder", isPresented: Binding(get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(saveError ?? "") }
+
         }
+        .tint(NudgeDesign.accent)
     }
-    
-    private func addReminder() {
+
+    private func addReminder() async {
+        isSaving = true
+        defer { isSaving = false }
         let styledTitle = applyWritingStyle(title, style: settings.writingStyle)
         
         let item = ReminderItem(
@@ -99,18 +99,23 @@ struct QuickAddView: View {
         
         modelContext.insert(item)
         
+        do { try modelContext.save() }
+        catch {
+            modelContext.delete(item)
+            saveError = error.localizedDescription
+            return
+        }
         if hasAlert {
-            Task {
-                await NotificationsManager.shared.schedule(reminder: item)
-            }
+            await NotificationsManager.shared.requestPermission()
+            await NotificationsManager.shared.schedule(reminder: item)
         }
-        
-        if calendarSyncEnabled {
-            Task {
-                await CalendarSync.shared.syncToCalendar(reminder: item)
-            }
-        }
-        
+        if calendarSyncEnabled { await CalendarSync.shared.syncToCalendar(reminder: item) }
+        WidgetDataProvider.shared.syncReminders(from: modelContext)
+        await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+        onSave(item)
+        dismiss()
+        onDismiss()
+
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
     }
@@ -128,6 +133,6 @@ struct QuickTimeButton: View {
             generator.impactOccurred()
         }
         .buttonStyle(.bordered)
-        .tint(Calendar.current.isDate(selection, equalTo: date, toGranularity: .minute) ? .blue : .secondary)
+        .tint(Calendar.current.isDate(selection, equalTo: date, toGranularity: .minute) ? NudgeDesign.accent : .secondary)
     }
 }

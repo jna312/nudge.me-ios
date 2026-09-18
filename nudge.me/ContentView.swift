@@ -5,408 +5,513 @@ import UserNotifications
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @EnvironmentObject var settings: AppSettings
     @Binding var isSettingsOpen: Bool
     @Binding var autoStartMic: Bool
-
     @ObservedObject var flow: CaptureFlow
     @ObservedObject var transcriber: SpeechTranscriber
-    @ObservedObject private var tipsManager = TipsManager.shared
-    
-    @State private var isHoldingMic = false
+    var onShowReminders: () -> Void
+    @Query(filter: #Predicate<ReminderItem> { $0.statusRaw == "open" }, sort: \ReminderItem.dueAt)
+    private var reminders: [ReminderItem]
+
+    @State private var showTextEntry = false
     @State private var showQuickAdd = false
-    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .medium)
-    @State private var lastSavedReminder: ReminderItem?
-    @State private var showUndoBanner = false
-    @State private var isAutoListening = false
-    @State private var silenceTimer = SilenceTimerController()
-    @State private var autoListenTimeoutTask: Task<Void, Never>?
+    @State private var editingReminder: ReminderItem?
+    @State private var savedReminder: ReminderItem?
+    @State private var isCapturing = false
+    @State private var isHolding = false
+    @State private var isFinishing = false
+    @State private var isStarting = false
+    @State private var isVisible = false
+    @FocusState private var isEditingDraft: Bool
+    @State private var captureGeneration = UUID()
+    @State private var captureTask: Task<Void, Never>?
+    @State private var captureTimeout: Task<Void, Never>?
+    @State private var notice: String?
+    @State private var alertStatus = ""
+    @State private var chosenPeriod = ""
+
+    private var isBusy: Bool { isStarting || isFinishing }
+    private var isFollowingUp: Bool { flow.step != .idle }
+    private var upNext: ReminderItem? {
+        reminders.first { ($0.dueAt ?? .distantPast) > .now }
+    }
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 32) {
-                Spacer()
-                
-                // Prompt text
-                Text(flow.prompt)
-                    .font(.title2)
-                    .fontWeight(.medium)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-                
-                // Transcript display
-                if !transcriber.transcript.isEmpty || isHoldingMic {
-                    Text(transcriber.transcript.isEmpty ? "Listening..." : transcriber.transcript)
-                        .font(.title3)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
-                        .background(.thinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .padding(.horizontal)
-                }
-                
-                Spacer()
-                
-                // Hold-to-record mic button
-                VStack(spacing: 12) {
-                    ZStack {
-                        // Pulsing background when recording
-                        if isHoldingMic {
-                            Circle()
-                                .fill(Color.red.opacity(0.2))
-                                .frame(width: 120, height: 120)
-                                .scaleEffect(isHoldingMic ? 1.2 : 1.0)
-                                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isHoldingMic)
-                        }
-                        
-                        // Main mic button
-                        Circle()
-                            .fill(isHoldingMic ? Color.red : Color.blue)
-                            .frame(width: 88, height: 88)
-                            .shadow(color: isHoldingMic ? .red.opacity(0.4) : .blue.opacity(0.3), radius: 8, y: 4)
-                            .overlay {
-                                Image(systemName: isHoldingMic ? "waveform" : "mic.fill")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(.white)
-                                    .symbolEffect(.variableColor.iterative, isActive: isHoldingMic)
-                            }
-                            .scaleEffect(isHoldingMic ? 1.1 : 1.0)
-                            .animation(.spring(response: 0.3), value: isHoldingMic)
-                            .accessibilityLabel(String(localized: "Recording indicator"))
-                            .accessibilityHint(String(localized: "Voice is being recorded"))
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if let savedReminder, !isCapturing, !isFollowingUp {
+                        savedContent(savedReminder)
+                    } else if isFollowingUp && !isCapturing {
+                        followUpContent
+                    } else {
+                        captureContent
+                            .frame(minHeight: transcriber.lastError == nil && notice == nil
+                                ? max(0, geometry.size.height - 28) : 0)
                     }
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                if !isHoldingMic && !isSettingsOpen {
-                                    startRecording()
+
+                    if let message = transcriber.lastError ?? notice {
+                        NudgeCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label(message, systemImage: "exclamationmark.circle")
+                                    .font(.subheadline)
+                                HStack {
+                                    Button("Type instead") { showTextEntry = true }
+                                    Spacer()
+                                    Button("Settings") {
+                                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                                    }
                                 }
+                                .font(.subheadline.weight(.semibold))
                             }
-                            .onEnded { _ in
-                                if isHoldingMic {
-                                    stopRecording()
-                                }
-                            }
-                    )
-                    .disabled(isSettingsOpen)
-                    .opacity(isSettingsOpen ? 0.5 : 1.0)
-                    
-                    Text(isHoldingMic ? "Release to save" : "Hold to speak")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                // Keyboard button
-                Button {
-                    showQuickAdd = true
-                } label: {
-                    Label("Type instead", systemImage: "keyboard")
-                        .font(.subheadline)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSettingsOpen)
-                .padding(.bottom, 32)
-            }
-            
-            // Undo banner overlay
-            if showUndoBanner, let reminder = lastSavedReminder {
-                VStack {
-                    Spacer()
-                    
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        
-                        Text("Saved: \(reminder.title)")
-                            .lineLimit(2)
-                        
-                        Spacer()
-                        
-                        Button("Undo") {
-                            undoLastReminder()
                         }
-                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("capture.notice")
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(radius: 8)
-                    .padding(.horizontal)
-                    .padding(.bottom, 120)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .animation(.spring(response: 0.3), value: showUndoBanner)
+                .frame(maxWidth: 560)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity)
             }
-            
-            // Tip overlay
-            if let tip = tipsManager.currentTip {
-                TipOverlay(tip: tip) {
-                    tipsManager.dismissTip(tip.id)
-                }
-            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(NudgeDesign.background.ignoresSafeArea())
+        // Reserve real layout space: content never sits behind the thumb-zone controls.
+        .safeAreaInset(edge: .top, spacing: 0) { captureHeader }
+        .safeAreaInset(edge: .bottom, spacing: 0) { captureDock }
+        .toolbar(.hidden, for: .navigationBar)
+        .tint(NudgeDesign.accent)
+        .sheet(isPresented: $showTextEntry) {
+            CaptureTextEntry(initialText: transcriber.lastError == nil ? "" : transcriber.transcript,
+                isFollowUp: isFollowingUp, onSubmit: { text in
+                    showTextEntry = false
+                    submit(text)
+                }, onManualEntry: {
+                    showTextEntry = false
+                    // Present after the first sheet finishes dismissing.
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        guard isVisible else { return }
+                        showQuickAdd = true
+                    }
+                })
         }
         .sheet(isPresented: $showQuickAdd) {
-            QuickAddView(settings: settings, modelContext: modelContext, calendarSyncEnabled: settings.calendarSyncEnabled) {}
+            QuickAddView(settings: settings, modelContext: modelContext,
+                calendarSyncEnabled: settings.calendarSyncEnabled, onDismiss: {}, onSave: { reminder in
+                    flow.reset()
+                    showReceipt(reminder)
+                })
         }
-        .task {
-            await transcriber.requestPermissions()
-            await NotificationsManager.shared.requestPermission()
+        .sheet(item: $editingReminder, onDismiss: {
+            if let reminder = savedReminder { refreshAlertStatus(reminder) }
+        }) { reminder in
+            EditReminderView(reminder: reminder, calendarSyncEnabled: settings.calendarSyncEnabled)
+        }
+        .onAppear {
+            isVisible = true
             NotificationsManager.shared.registerCategories()
-            
-            // Pre-prepare haptic for instant response
-            hapticGenerator.prepare()
-            
-            // Set up notification callbacks
-            NotificationsManager.shared.onNotificationWillPresent = { [weak transcriber] in
-                transcriber?.stop()
-                isHoldingMic = false
+            NotificationsManager.shared.onNotificationWillPresent = {
+                guard isVisible else { return }
+                cancelCapture()
             }
-            
-            // Show hold to speak tip on first launch
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                tipsManager.showTipIfNeeded(.holdToSpeak)
-            }
+            if autoStartMic { consumeAutoStart() }
         }
-        .onChange(of: autoStartMic) { _, shouldStart in
-            if shouldStart {
-                autoStartMic = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    startAutoListening()
-                }
-            }
+        .onDisappear {
+            isVisible = false
+            cancelCapture()
+            savedReminder = nil
+            NotificationsManager.shared.onNotificationWillPresent = nil
         }
-        .onChange(of: isSettingsOpen) { _, isOpen in
-            if isOpen {
-                if isHoldingMic {
-                    transcriber.stop()
-                    isHoldingMic = false
-                }
-            }
+        .onChange(of: autoStartMic) { _, start in if start && isVisible { consumeAutoStart() } }
+        .onChange(of: isSettingsOpen) { _, open in if open { cancelCapture() } }
+        .onChange(of: scenePhase) { _, phase in if phase == .background { cancelCapture() } }
+        .onChange(of: flow.lastSavedReminder) { _, reminder in
+            if let reminder { showReceipt(reminder) }
         }
-        .onChange(of: flow.lastSavedReminder) { _, newReminder in
-            if let reminder = newReminder {
-                lastSavedReminder = reminder
-                withAnimation {
-                    showUndoBanner = true
+        .onChange(of: flow.ambiguousTime) { _, _ in chosenPeriod = "" }
+        .onChange(of: transcriber.isRecording) { _, recording in
+            // A final result or audio interruption can end recording without a touch.
+            if !recording && isCapturing && !isFinishing { finishRecording() }
+        }
+    }
+
+    private var captureHeader: some View {
+        HStack {
+            Text("nudge.me").font(.headline)
+            Spacer()
+            Button {
+                if isFollowingUp {
+                    cancelCapture(); flow.reset(); transcriber.reset(); savedReminder = nil
+                } else {
+                    isSettingsOpen = true
                 }
-                
-                // Sync to calendar if enabled
-                if settings.calendarSyncEnabled {
-                    Task {
-                        await CalendarSync.shared.syncToCalendar(reminder: reminder)
+            } label: {
+                Image(systemName: isFollowingUp ? "xmark" : "slider.horizontal.3")
+                    .font(.body.weight(.medium))
+                    .frame(width: 44, height: 44)
+                    .background(NudgeDesign.surface, in: Circle())
+            }
+            .foregroundStyle(.primary)
+            .accessibilityLabel(isFollowingUp ? "Cancel reminder" : "Capture settings")
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 6)
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+        .background(NudgeDesign.background.ignoresSafeArea(edges: .top))
+    }
+
+    private var captureContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if isCapturing || isFinishing || !transcriber.transcript.isEmpty {
+                Text(isFinishing ? "Processing…" : "Listening…")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text(transcriber.transcript.isEmpty ? "…" : transcriber.transcript)
+                    .font(.title2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+            } else {
+                Spacer(minLength: 24)
+                Text("What’s the reminder?")
+                    .font(.title3.weight(.medium)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                Spacer(minLength: 24)
+                if let reminder = upNext {
+                    Button { editingReminder = reminder } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock").foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(reminder.title).font(.subheadline.weight(.medium)).foregroundStyle(.primary)
+                                if let due = reminder.dueAt {
+                                    Text("\(NudgeDesign.dayLabel(due)) · \(formatTimeShort(due))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .frame(minHeight: 44)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Edit your next reminder")
                 }
-                
-                // Sync to widget
-                WidgetDataProvider.shared.syncReminders(from: modelContext)
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                    withAnimation {
-                        if lastSavedReminder?.id == reminder.id {
-                            showUndoBanner = false
+            }
+        }
+    }
+
+    private var microphone: some View {
+        CaptureMicButton(isRecording: isCapturing, isBusy: isFinishing,
+            onTap: {
+                if isCapturing { finishRecording() } else { startRecording(holding: false) }
+            }, onHoldStart: {
+                if isCapturing { isHolding = true } else { startRecording(holding: true) }
+            }, onHoldEnd: {
+                if isHolding { finishRecording() }
+            })
+    }
+
+    private var captureDock: some View {
+        VStack(spacing: 2) {
+            if let time = flow.ambiguousTime, !isCapturing, !isBusy {
+                HStack(spacing: 18) {
+                    microphone.scaleEffect(0.72).frame(width: 96, height: 100)
+                    Button("Save") {
+                        submit("\(time) \(chosenPeriod)")
+                    }
+                    .buttonStyle(NudgePrimaryButtonStyle())
+                    .disabled(chosenPeriod.isEmpty)
+                    .opacity(chosenPeriod.isEmpty ? 0.5 : 1)
+                }
+                .padding(.horizontal, 20)
+            } else {
+                microphone
+                Text(isStarting ? "Getting ready…" : isFinishing ? "Finishing…" : isCapturing
+                    ? (isHolding ? "Release to finish" : "Tap to finish")
+                    : "Tap or hold")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            Button {
+                cancelCapture()
+                showTextEntry = true
+            } label: {
+                Label("Type", systemImage: "keyboard")
+                    .font(.subheadline).frame(minHeight: 44)
+            }
+            .accessibilityLabel(isFollowingUp ? "Type your answer" : "Type a reminder")
+            .foregroundStyle(.secondary)
+            .disabled(isFinishing)
+        }
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+        .frame(maxWidth: 560)
+        .frame(maxWidth: .infinity)
+        .background(NudgeDesign.background.ignoresSafeArea(edges: .bottom))
+    }
+
+    private var followUpContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(flow.ambiguousTime == nil ? flow.prompt : String(localized: "AM or PM?"))
+                .font(.headline)
+            NudgeCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let title = flow.draftTitle {
+                        TextField("Reminder title", text: Binding(get: { flow.draftTitle ?? title }, set: flow.updateDraftTitle))
+                            .font(.headline)
+                            .accessibilityIdentifier("capture.draftTitle")
+                            .focused($isEditingDraft)
+                            .submitLabel(.done)
+                            .onSubmit { isEditingDraft = false }
+                    }
+                    if let day = flow.draftDate {
+                        Divider()
+                        Label(NudgeDesign.exactDate(day), systemImage: "calendar")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if let time = flow.ambiguousTime {
+                        Divider()
+                        ViewThatFits(in: .horizontal) {
+                            HStack { periodChoices(time) }
+                            VStack(alignment: .leading) { periodChoices(time) }
                         }
                     }
-                }
-                
-                // Show tips after first successful reminder
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    if tipsManager.currentTip == nil {
-                        tipsManager.showTipIfNeeded(.undoBanner)
-                    }
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                    if tipsManager.currentTip == nil {
-                        tipsManager.showTipIfNeeded(.voiceCommands)
+                    if let early = flow.pendingEarlyAlertMinutes {
+                        Divider()
+                        Label("\(formatMinutes(early)) before", systemImage: "bell")
+                            .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
             }
-        }
-        .onChange(of: flow.needsFollowUp) { _, needsFollowUp in
-            if needsFollowUp {
-                // Delay to let state settle, then check conditions
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    if !isHoldingMic && !isSettingsOpen {
-                        startAutoListening()
+            if flow.ambiguousTime == nil {
+                switch flow.step {
+                case .confirmDuplicate, .confirmEdit, .confirmCancel:
+                    HStack {
+                        Button("Cancel") { submit("no") }.buttonStyle(.bordered).controlSize(.large)
+                        Button("Confirm") { submit("yes") }.buttonStyle(.borderedProminent).controlSize(.large)
                     }
+                case .calendarConflict:
+                    Button("Save anyway") { submit("save anyway") }.buttonStyle(NudgePrimaryButtonStyle())
+                    Button("Choose another time") { submit("change time") }.frame(minHeight: 44)
+                default:
+                    EmptyView()
                 }
-            }
-        }
-        .onChange(of: transcriber.transcript) { _, newValue in
-            if isAutoListening && !newValue.isEmpty {
-                resetSilenceTimer()
-            }
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                // App became active - reset state and ensure audio system is ready
-                if isHoldingMic && !isAutoListening {
-                    // Stuck in recording state - reset
-                    isHoldingMic = false
-                    transcriber.reset()
-                }
-                transcriber.warmUp()
-                hapticGenerator.prepare()
-                
-                // Reset flow if it's been stuck
-                if flow.needsFollowUp {
-                    flow.needsFollowUp = false
-                }
-            } else if newPhase == .background {
-                // App going to background - clean up
-                if isHoldingMic {
-                    stopRecording()
-                }
-                silenceTimer.cancel()
-                autoListenTimeoutTask?.cancel()
-                autoListenTimeoutTask = nil
-                isAutoListening = false
             }
         }
     }
-    
-    private func startRecording() {
-        // Immediate haptic feedback - generator already prepared
-        hapticGenerator.impactOccurred()
-        
-        // Immediately update UI state
-        isHoldingMic = true
-        transcriber.transcript = ""
-        
-        withAnimation {
-            showUndoBanner = false
-        }
-        
-        do {
-            try transcriber.start()
-        } catch {
-            // Failed to start - reset state
-            isHoldingMic = false
-            transcriber.reset()
-            
-            // Haptic feedback for error
-            let errorGenerator = UINotificationFeedbackGenerator()
-            errorGenerator.notificationOccurred(.error)
+
+    @ViewBuilder private func periodChoices(_ time: String) -> some View {
+        Label(chosenPeriod.isEmpty ? time : "\(time) \(chosenPeriod)", systemImage: "clock")
+        Spacer(minLength: 8)
+        HStack(spacing: 8) {
+            ForEach(["AM", "PM"], id: \.self) { period in
+                Button(period) { isEditingDraft = false; chosenPeriod = period }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minWidth: 48, minHeight: 44)
+                    .background(chosenPeriod == period ? NudgeDesign.softAccent : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityAddTraits(chosenPeriod == period ? .isSelected : [])
+            }
         }
     }
-    
-    private func stopRecording() {
-        isAutoListening = false
-        silenceTimer.cancel()
-        autoListenTimeoutTask?.cancel()
-        autoListenTimeoutTask = nil
-        isHoldingMic = false
+
+    private func savedContent(_ reminder: ReminderItem) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label("Saved", systemImage: "checkmark.circle.fill")
+                .font(.headline).foregroundStyle(NudgeDesign.accent)
+            NudgeCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(reminder.title).font(.headline)
+                    if let due = reminder.dueAt {
+                        Text("\(NudgeDesign.exactDate(due)) at \(formatTimeShort(due))")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Label(alertStatus, systemImage: "bell")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    if let early = reminder.earlyAlertAt, reminder.alertAt != nil {
+                        Text("Early warning: \(early.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Button("Edit") { editingReminder = reminder }.frame(minHeight: 44)
+                        Spacer()
+                        Button("Undo", role: .destructive) { undo(reminder) }.frame(minHeight: 44)
+                            .accessibilityLabel("Undo reminder")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                }
+            }
+            Button("View reminders", action: onShowReminders)
+                .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+        }
+    }
+
+    private func consumeAutoStart() {
+        autoStartMic = false
+        startRecording(holding: false)
+    }
+
+    private func startRecording(holding: Bool) {
+        guard !isCapturing, !isBusy, !isSettingsOpen, isVisible else { return }
+        savedReminder = nil; notice = nil; isHolding = holding; isStarting = true
+        let generation = UUID()
+        captureGeneration = generation
+        captureTask = Task { @MainActor in
+            let permitted = await transcriber.requestPermissions()
+            guard captureGeneration == generation else { return }
+            guard !Task.isCancelled, isVisible else { isStarting = false; return }
+            isStarting = false
+            guard permitted else { isHolding = false; return }
+            do {
+                try transcriber.start()
+                isCapturing = true
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                captureTimeout = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(60))
+                    guard !Task.isCancelled, captureGeneration == generation else { return }
+                    finishRecording()
+                }
+            } catch {
+                transcriber.lastError = error.localizedDescription
+                isCapturing = false; isHolding = false
+            }
+        }
+    }
+
+    private func finishRecording() {
+        if isStarting { cancelCapture(); return }
+        guard isCapturing, !isFinishing else { return }
+        isFinishing = true; isCapturing = false; isHolding = false
+        captureTimeout?.cancel()
+        let generation = UUID()
+        captureGeneration = generation
+        captureTask = Task { @MainActor in
+            defer { if captureGeneration == generation { isFinishing = false } }
+            do {
+                let text = try await transcriber.finish()
+                guard !Task.isCancelled, isVisible, captureGeneration == generation else { return }
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    notice = String(localized: "I didn’t hear anything. Try again or type a reminder.")
+                    return
+                }
+                await flow.handleTranscript(text, settings: settings, modelContext: modelContext)
+                transcriber.transcript = ""
+            } catch is CancellationError {
+                // Leaving the screen cancels capture without submitting a partial reminder.
+            } catch {
+                if captureGeneration == generation { transcriber.lastError = error.localizedDescription }
+            }
+        }
+    }
+
+    private func submit(_ text: String) {
+        guard !isBusy, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        savedReminder = nil; notice = nil; transcriber.reset(); isFinishing = true
+        isEditingDraft = false
+        let generation = UUID()
+        captureGeneration = generation
+        captureTask = Task { @MainActor in
+            await flow.handleTranscript(text, settings: settings, modelContext: modelContext)
+            if captureGeneration == generation { isFinishing = false }
+        }
+    }
+
+    private func cancelCapture() {
+        captureGeneration = UUID()
+        captureTask?.cancel(); captureTimeout?.cancel()
+        isCapturing = false; isHolding = false; isStarting = false; isFinishing = false
         transcriber.stop()
-        
-        let finalText = transcriber.transcript
-        
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
-        
-        guard !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            transcriber.transcript = ""
-            return
-        }
-        
-        Task {
-            await flow.handleTranscript(finalText, settings: settings, modelContext: modelContext)
-            
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            transcriber.transcript = ""
-        }
     }
-    
-    // MARK: - Auto-listening for follow-up questions
-    
-    private func startAutoListening() {
-        guard !isHoldingMic && !isSettingsOpen else {
-            return
-        }
-        
-        withAnimation {
-            showUndoBanner = false
-        }
-        
-        isHoldingMic = true
-        isAutoListening = true
+
+    private func showReceipt(_ reminder: ReminderItem) {
+        savedReminder = reminder
         transcriber.transcript = ""
-        
-        do {
-            try transcriber.start()
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
-            // Don't start silence timer yet - wait until user starts speaking
-        } catch {
-            // Failed to start - reset state
-            isHoldingMic = false
-            isAutoListening = false
-            transcriber.reset()
+        notice = nil
+        refreshAlertStatus(reminder)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    private func refreshAlertStatus(_ reminder: ReminderItem) {
+        alertStatus = String(localized: "Checking alert…")
+        Task { @MainActor in
+            let center = UNUserNotificationCenter.current()
+            let permission = await center.notificationSettings()
+            let requests = await center.pendingNotificationRequests()
+            guard savedReminder?.id == reminder.id else { return }
+            if reminder.alertAt == nil {
+                alertStatus = String(localized: "No alert")
+            } else if permission.authorizationStatus == .denied || permission.authorizationStatus == .notDetermined {
+                alertStatus = String(localized: "Notifications off in Settings")
+            } else if requests.contains(where: { $0.identifier == "\(reminder.id.uuidString)-alert" }) {
+                alertStatus = String(localized: "Alert scheduled")
+            } else {
+                alertStatus = String(localized: "Alert not scheduled")
+            }
         }
-        
-        // Safety timeout after 60 seconds (in case user forgets) - cancellable
-        autoListenTimeoutTask?.cancel()
-        autoListenTimeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 60_000_000_000)
-            guard !Task.isCancelled else { return }
-            
-            if self.isAutoListening && self.transcriber.transcript.isEmpty {
-                // Save the current prompt if it was a follow-up question
-                let currentPrompt = self.flow.prompt
-                let wasFollowUp = self.flow.needsFollowUp
-                
-                self.stopRecording()
-                
-                // If there was a follow-up question, keep it visible and add timeout note
-                if wasFollowUp {
-                    self.flow.prompt = currentPrompt + "\n" + String(localized: "(Hold mic to respond)")
-                    self.flow.needsFollowUp = true // Keep question state active
-                } else {
-                    self.flow.prompt = String(localized: "Mic timed out. Tap to try again.")
+    }
+
+    private func undo(_ reminder: ReminderItem) {
+        Task { @MainActor in
+            NotificationsManager.shared.removeNotifications(for: reminder)
+            if settings.calendarSyncEnabled { await CalendarSync.shared.removeFromCalendar(reminder: reminder) }
+            modelContext.delete(reminder)
+            do {
+                try modelContext.save()
+                WidgetDataProvider.shared.syncReminders(from: modelContext)
+                await MorningBriefingManager.shared.scheduleIfNeeded(settings: settings, modelContext: modelContext)
+                savedReminder = nil; flow.lastSavedReminder = nil; flow.reset()
+                notice = nil
+            } catch {
+                modelContext.rollback()
+                notice = String(localized: "Couldn’t undo the reminder. Please try again.")
+            }
+        }
+    }
+}
+
+private struct CaptureTextEntry: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var initialText: String
+    let isFollowUp: Bool
+    let onSubmit: (String) -> Void
+    let onManualEntry: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    TextField(isFollowUp ? "Your answer" : "Remind me to…", text: $initialText, axis: .vertical)
+                        .lineLimit(2...6).focused($focused)
+                        .padding(16).background(NudgeDesign.surface, in: RoundedRectangle(cornerRadius: 16))
+                        .accessibilityIdentifier("capture.typedReminder")
+                    if !isFollowUp {
+                        Button("Choose date & time", action: onManualEntry)
+                            .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+                    }
                 }
+                .padding(20).frame(maxWidth: 560).frame(maxWidth: .infinity)
             }
-        }
-    }
-    
-    private func resetSilenceTimer() {
-        // Only use silence detection after user has started speaking
-        let hasSpoken = !transcriber.transcript.isEmpty
-        guard hasSpoken else {
-            silenceTimer.cancel()
-            return
-        }
-
-        // After speech detected, wait for 2 seconds of silence to auto-stop
-        silenceTimer.schedule(timeout: 2.0) {
-            if self.isAutoListening {
-                self.stopRecording()
+            .scrollDismissesKeyboard(.interactively)
+            .background(NudgeDesign.background)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button(isFollowUp ? "Continue" : "Add reminder") { onSubmit(initialText) }
+                    .buttonStyle(NudgePrimaryButtonStyle())
+                    .disabled(initialText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(initialText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
+                    .padding(.horizontal, 20).padding(.vertical, 12)
+                    .frame(maxWidth: 560).frame(maxWidth: .infinity)
+                    .background(NudgeDesign.background)
             }
-        }
-    }
-
-    private func undoLastReminder() {
-        guard let reminder = lastSavedReminder else { return }
-        
-        // Cancel notification
-        let notificationID = "\(reminder.id.uuidString)-alert"
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [notificationID])
-        
-        // Remove from calendar if sync enabled
-        if settings.calendarSyncEnabled {
-            Task {
-                await CalendarSync.shared.removeFromCalendar(reminder: reminder)
+            .navigationTitle(isFollowUp ? "Reply" : "New reminder")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
+            .onAppear { focused = true }
         }
-        
-        // Delete reminder
-        modelContext.delete(reminder)
-        
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.warning)
-        
-        withAnimation {
-            showUndoBanner = false
-        }
-        lastSavedReminder = nil
-        flow.prompt = String(localized: "Undone. Try again?")
+        .tint(NudgeDesign.accent)
     }
 }

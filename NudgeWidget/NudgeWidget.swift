@@ -1,244 +1,251 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
-private let voiceDeepLinkURL = URL(string: "nudgeme://voice")!
+private let voiceURL = URL(string: "nudgeme://voice")!
+private let remindersURL = URL(string: "nudgeme://reminders")!
 
 struct NudgeWidgetEntry: TimelineEntry {
     let date: Date
-    let reminders: [WidgetReminder]
-}
-
-struct WidgetReminder: Identifiable {
-    let id: UUID
-    let title: String
-    let dueAt: Date
+    let snapshot: WidgetSnapshot
 }
 
 struct NudgeTimelineProvider: TimelineProvider {
-    func placeholder(in context: Context) -> NudgeWidgetEntry {
-        NudgeWidgetEntry(date: Date(), reminders: [
-            WidgetReminder(id: UUID(), title: "Sample reminder", dueAt: Date().addingTimeInterval(3600))
-        ])
-    }
-    
-    func getSnapshot(in context: Context, completion: @escaping (NudgeWidgetEntry) -> Void) {
-        completion(NudgeWidgetEntry(date: Date(), reminders: loadReminders()))
-    }
-    
-    func getTimeline(in context: Context, completion: @escaping (Timeline<NudgeWidgetEntry>) -> Void) {
-        let entry = NudgeWidgetEntry(date: Date(), reminders: loadReminders())
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
-        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
-    }
-    
-    private func loadReminders() -> [WidgetReminder] {
-        guard let defaults = UserDefaults(suiteName: "group.com.m2.nudge"),
-              let data = defaults.data(forKey: "widgetReminders"),
-              let decoded = try? JSONDecoder().decode([SharedReminder].self, from: data) else {
-            return []
-        }
-        let now = Date()
-        let endOfDay = Calendar.current.startOfDay(for: now).addingTimeInterval(86400)
-        return decoded
-            .filter { !$0.isCompleted && $0.dueAt >= now && $0.dueAt < endOfDay }
-            .sorted { $0.dueAt < $1.dueAt }
-            .prefix(5)
-            .map { WidgetReminder(id: $0.id, title: $0.title, dueAt: $0.dueAt) }
-    }
-}
+    func placeholder(in context: Context) -> NudgeWidgetEntry { Self.preview }
 
-struct SharedReminder: Codable {
-    let id: UUID
-    let title: String
-    let dueAt: Date
-    let isCompleted: Bool
+    func getSnapshot(in context: Context, completion: @escaping (NudgeWidgetEntry) -> Void) {
+        let now = Date()
+        completion(context.isPreview ? Self.preview : NudgeWidgetEntry(date: now, snapshot: WidgetSharedStore.read(at: now)))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<NudgeWidgetEntry>) -> Void) {
+        let now = Date()
+        let snapshot = WidgetSharedStore.read(at: now)
+        let entries = WidgetSnapshot.timelineDates(for: snapshot.reminders, from: now).map { date in
+            NudgeWidgetEntry(date: date, snapshot: WidgetSnapshot(reminders: snapshot.reminders, at: date,
+                isAvailable: snapshot.isAvailable, completionFailed: snapshot.completionFailed))
+        }
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
+    }
+
+    static var preview: NudgeWidgetEntry {
+        let now = Date()
+        let reminders = ["Call Maya", "Pick up groceries", "Water the plants"].enumerated().map { offset, title in
+            SharedWidgetReminder(id: UUID(), title: title, dueAt: now.addingTimeInterval(Double(offset + 1) * 3600), isCompleted: false)
+        }
+        return NudgeWidgetEntry(date: now, snapshot: WidgetSnapshot(reminders: reminders, at: now))
+    }
 }
 
 struct NudgeWidgetEntryView: View {
-    var entry: NudgeTimelineProvider.Entry
-    @Environment(\.widgetFamily) var family
-    
-    var body: some View {
-        switch family {
-        case .systemSmall:
-            SmallWidgetView(entry: entry)
-        case .systemMedium:
-            MediumWidgetView(entry: entry)
-        case .systemLarge:
-            LargeWidgetView(entry: entry)
-        default:
-            SmallWidgetView(entry: entry)
-        }
-    }
-}
-
-struct SmallWidgetView: View {
     let entry: NudgeWidgetEntry
-    
-    var body: some View {
-        Link(destination: voiceDeepLinkURL) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.blue)
-                        .frame(width: 60, height: 60)
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(.white)
-                }
-                Text("Tap to speak")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                if !entry.reminders.isEmpty {
-                    Text("\(entry.reminders.count) today")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .accessibilityLabel("\(entry.reminders.count) reminders today")
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .containerBackground(.fill.tertiary, for: .widget)
-    }
-}
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-struct MediumWidgetView: View {
-    let entry: NudgeWidgetEntry
-    
     var body: some View {
-        HStack(spacing: 16) {
-            Link(destination: voiceDeepLinkURL) {
-                VStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 50, height: 50)
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.white)
-                    }
-                    Text("Tap to speak")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-                }
-                .frame(width: 80)
+        Group {
+            switch family {
+            case .systemSmall: small
+            case .systemMedium: medium
+            default: large
             }
-            Divider()
-            VStack(alignment: .leading, spacing: 6) {
-                if entry.reminders.isEmpty {
-                    Text("No reminders today")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                } else {
-                    ForEach(entry.reminders.prefix(3)) { reminder in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(reminder.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .lineLimit(1)
-                                Text(formatTime(reminder.dueAt))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                        }
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .tint(NudgeDesign.accent)
+        .containerBackground(for: .widget) { NudgeDesign.background }
+        .widgetURL(family == .systemSmall && entry.snapshot.isAvailable ? voiceURL : remindersURL)
     }
-    
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        return f.string(from: date)
-    }
-}
 
-struct LargeWidgetView: View {
-    let entry: NudgeWidgetEntry
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("nudge.me")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                Spacer()
-                Link(destination: voiceDeepLinkURL) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 44, height: 44)
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white)
-                    }
-                }
-            }
-            Divider()
-            if entry.reminders.isEmpty {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.green)
-                    Text("All done for today!")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
+    private var small: some View {
+        VStack(spacing: 8) {
+            Text("nudge.me").font(.subheadline.weight(.semibold))
+            Spacer(minLength: 0)
+            WidgetMic(size: 62)
+            Spacer(minLength: 0)
+            if !entry.snapshot.isAvailable {
+                Text("Open nudge.me").font(.caption)
+            } else if entry.snapshot.overdueCount > 0 {
+                Text("\(entry.snapshot.overdueCount) overdue")
+                    .font(.caption.weight(.medium)).foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(entry.reminders.prefix(5)) { reminder in
-                        HStack(spacing: 12) {
-                            Image(systemName: "circle")
-                                .font(.system(size: 20))
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(reminder.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .lineLimit(1)
-                                Text(formatTime(reminder.dueAt))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-                Spacer(minLength: 0)
+                Text("\(entry.snapshot.openCount) open").font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Create reminder. \(entry.snapshot.openCount) open, \(entry.snapshot.overdueCount) overdue.")
+        .accessibilityHint("Opens the microphone in nudge.me")
     }
-    
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        return f.string(from: date)
+
+    private var medium: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                heading
+                if entry.snapshot.reminders.isEmpty {
+                    emptyState.frame(maxHeight: .infinity)
+                } else {
+                    reminderRows(limit: typeSize.isAccessibilitySize ? 1 : 2)
+                    if entry.snapshot.completionFailed { completionError }
+                }
+            }
+            Spacer(minLength: 0)
+            Link(destination: voiceURL) {
+                VStack(spacing: 6) {
+                    WidgetMic(size: 56)
+                    Text("Speak").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityLabel("Create reminder by voice")
+        }
+    }
+
+    private var large: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                heading
+                Spacer(minLength: 8)
+                Link(destination: voiceURL) { WidgetMic(size: 40).frame(width: 44, height: 44) }
+                    .accessibilityLabel("Create reminder by voice")
+            }
+            if entry.snapshot.reminders.isEmpty {
+                emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                let limit = typeSize.isAccessibilitySize ? 3 : 5
+                reminderRows(limit: limit)
+                Spacer(minLength: 0)
+                if entry.snapshot.completionFailed {
+                    completionError
+                } else if entry.snapshot.openCount > limit {
+                    Link("\(entry.snapshot.openCount - limit) more", destination: remindersURL)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var heading: some View {
+        Link(destination: remindersURL) {
+            HStack(spacing: 6) {
+                Text("Reminders").font(.subheadline.weight(.semibold))
+                if entry.snapshot.isAvailable {
+                    Text("\(entry.snapshot.openCount)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NudgeDesign.accent)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(NudgeDesign.softAccent, in: Capsule())
+                        .widgetAccentable()
+                        .invalidatableContent()
+                }
+            }
+            .lineLimit(1)
+        }
+        .foregroundStyle(.primary)
+        .accessibilityLabel("\(entry.snapshot.openCount) open reminders")
+    }
+
+    private var emptyState: some View {
+        Link(destination: remindersURL) {
+            Label(entry.snapshot.isAvailable ? "No reminders" : "Open nudge.me",
+                  systemImage: entry.snapshot.isAvailable ? "checkmark.circle" : "arrow.up.forward.app")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+    }
+
+    private var completionError: some View {
+        Link("Couldn’t complete. Open app.", destination: remindersURL)
+            .font(.caption).foregroundStyle(.secondary)
+    }
+
+    private func reminderRows(limit: Int) -> some View {
+        VStack(spacing: 2) {
+            ForEach(entry.snapshot.reminders.prefix(limit)) { reminder in
+                WidgetReminderRow(reminder: reminder, date: entry.date)
+            }
+        }
+    }
+}
+
+private struct WidgetReminderRow: View {
+    let reminder: SharedWidgetReminder
+    let date: Date
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    private var overdue: Bool { (reminder.dueAt ?? .distantFuture) < date }
+    private var detail: String {
+        guard let due = reminder.dueAt else { return String(localized: "No date") }
+        let calendar = Calendar.current
+        let time = due.formatted(date: .omitted, time: .shortened)
+        if calendar.isDate(due, inSameDayAs: date) {
+            return overdue ? String(localized: "Overdue") + " · " + time : time
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: date), calendar.isDate(due, inSameDayAs: tomorrow) {
+            return String(localized: "Tomorrow") + " · " + time
+        }
+        let day = due.formatted(.dateTime.month(.abbreviated).day())
+        return (overdue ? String(localized: "Overdue") + " · " : "") + day + " · " + time
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button(intent: CompleteWidgetReminderIntent(id: reminder.id)) {
+                Image(systemName: "circle")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(NudgeDesign.accent)
+                    .frame(width: 36, height: 44)
+            }
+            .buttonStyle(.plain)
+            .widgetAccentable()
+            .accessibilityLabel("Complete \(reminder.title)")
+            Link(destination: URL(string: "nudgeme://reminder/\(reminder.id.uuidString)")!) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reminder.title).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(1)
+                    Text(detail).font(.caption2)
+                        .foregroundStyle(overdue && renderingMode == .fullColor ? Color.red : Color.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .accessibilityLabel("\(reminder.title), \(detail)")
+            .accessibilityHint("Edit reminder")
+        }
+        .invalidatableContent()
+    }
+}
+
+private struct WidgetMic: View {
+    let size: CGFloat
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    var body: some View {
+        ZStack {
+            if renderingMode == .fullColor {
+                Circle().fill(RadialGradient(colors: [Color(red: 0.72, green: 0.80, blue: 1),
+                    Color(red: 0.40, green: 0.46, blue: 0.94), Color(red: 0.20, green: 0.27, blue: 0.65)],
+                    center: .init(x: 0.27, y: 0.17), startRadius: 0, endRadius: size))
+            } else {
+                Circle().fill(.primary.opacity(0.15))
+            }
+            Image(systemName: "mic.fill")
+                .font(.system(size: size * 0.42, weight: .medium))
+                .foregroundStyle(renderingMode == .fullColor ? Color.white : Color.primary)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
 struct NudgeWidget: Widget {
-    let kind: String = "NudgeWidget"
-    
+    let kind = WidgetSharedStore.kind
+
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: NudgeTimelineProvider()) { entry in
             NudgeWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("nudge.me")
-        .description("Quick access to add reminders.")
+        .description("Speak a reminder. See what’s due. Mark it done.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
+
+#Preview(as: .systemSmall) { NudgeWidget() } timeline: { NudgeTimelineProvider.preview }
+#Preview(as: .systemMedium) { NudgeWidget() } timeline: { NudgeTimelineProvider.preview }
+#Preview(as: .systemLarge) { NudgeWidget() } timeline: { NudgeTimelineProvider.preview }
